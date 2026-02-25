@@ -97,6 +97,8 @@ export interface Entidad {
   notas?: string
   // Agregado en Sprint 1 — justificado en M1-04 §5: almacenar respuestas para auditoría y recálculo
   respuestasFactibilidad?: RespuestasFactibilidad
+  // Agregado en Sprint 2 — checklist operativo del glosario (M1-03 §8)
+  checklistGlosario?: ChecklistGlosario
   creadoEn: Date
   actualizadoEn: Date
   creadoPor: string
@@ -238,3 +240,47 @@ export type CrearEntidadDTO = Omit<Entidad, 'id' | 'creadoEn' | 'actualizadoEn' 
 
 /** DTO para actualizar parcialmente una entidad */
 export type ActualizarEntidadDTO = Partial<Omit<Entidad, 'id' | 'creadoEn' | 'creadoPor'>>
+
+// ---------- GLOSARIO DE DOMINIO (MÓDULO 1 Sprint 2) ----------
+// Justificado en M1-03 §7 — Plantilla operativa de entrada del glosario
+
+/** Checklist operativo del glosario (M1-03 §8) — guardado en el documento de la entidad */
+export interface ChecklistGlosario {
+  // §8.1 Construcción
+  reviso_documentacion_interna: boolean
+  reviso_normativas_sector: boolean
+  entrevisto_usuario_final: boolean
+  entrevisto_responsable_tecnico: boolean
+  realizo_observacion_directa: boolean
+  definidos_acronimos: boolean
+  identificados_terminos_distintos: boolean
+  capturado_vocabulario_informal: boolean
+  // §8.2 Validación
+  definiciones_validadas: boolean
+  sin_conflictos_pendientes: boolean
+  equipo_tecnico_reviso: boolean
+  sin_interpretaciones_inesperadas: boolean
+}
+
+/** Entrada del glosario de dominio de una entidad (M1-03 §7) */
+export interface EntradaGlosario {
+  id: string
+  entidadId: string
+  termino: string
+  definicion: string
+  sinonimos?: string[]
+  terminoTecnico?: string
+  fuente: string        // Nombre del stakeholder o fuente que lo definió
+  fechaValidacion?: Date
+  contexto?: string
+  advertencia?: string
+  creadoEn: Date
+  actualizadoEn: Date
+  creadoPor: string
+}
+
+/** DTO para crear/actualizar una entrada del glosario */
+export type CrearEntradaGlosarioDTO = Omit<
+  EntradaGlosario,
+  'id' | 'entidadId' | 'creadoEn' | 'actualizadoEn' | 'creadoPor'
+>

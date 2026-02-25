@@ -11,7 +11,9 @@ import { EntidadHeader } from '@/components/entidades/EntidadHeader';
 import { EntidadKPIs } from '@/components/entidades/EntidadKPIs';
 import { StakeholdersTab } from '@/components/entidades/StakeholdersTab';
 import { HistorialTab } from '@/components/entidades/HistorialTab';
+import { GlosarioTab } from '@/components/entidades/GlosarioTab';
 import { useEntidad } from '@/hooks/useEntidades';
+import { useGlosario } from '@/hooks/useGlosario';
 import { ROUTES } from '@/constants';
 
 interface Props {
@@ -21,6 +23,8 @@ interface Props {
 export default function DetalleEntidadPage({ params }: Props) {
   const { entidadId } = use(params);
   const { data: entidad, isLoading, isError } = useEntidad(entidadId);
+  const { data: terminos = [] } = useGlosario(entidadId);
+  const glosarioCount = terminos.length;
 
   if (isLoading) {
     return (
@@ -57,7 +61,6 @@ export default function DetalleEntidadPage({ params }: Props) {
 
   return (
     <div className="space-y-6">
-      {/* Breadcrumb */}
       <Button variant="ghost" size="sm" asChild>
         <Link href={ROUTES.ENTIDADES}>
           <ArrowLeft className="h-4 w-4 mr-1.5" />
@@ -65,29 +68,27 @@ export default function DetalleEntidadPage({ params }: Props) {
         </Link>
       </Button>
 
-      {/* Header con acciones */}
       <EntidadHeader
         entidad={entidad}
-        onDeleted={() => window.location.href = ROUTES.ENTIDADES}
+        onDeleted={() => { window.location.href = ROUTES.ENTIDADES; }}
       />
 
-      {/* KPIs */}
-      <EntidadKPIs entidad={entidad} />
+      <EntidadKPIs entidad={entidad} glosarioCount={glosarioCount} />
 
-      {/* Tabs de contenido */}
       <Tabs defaultValue="informacion">
         <TabsList className="mb-4">
           <TabsTrigger value="informacion">Información</TabsTrigger>
           <TabsTrigger value="stakeholders">
             Stakeholders ({entidad.stakeholders.length})
           </TabsTrigger>
+          <TabsTrigger value="glosario">
+            Glosario ({glosarioCount})
+          </TabsTrigger>
           <TabsTrigger value="historial">Historial</TabsTrigger>
         </TabsList>
 
-        {/* Tab: Información general */}
         <TabsContent value="informacion">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {/* Datos de identificación */}
             <Card>
               <CardHeader>
                 <CardTitle className="text-base">Identificación</CardTitle>
@@ -105,7 +106,6 @@ export default function DetalleEntidadPage({ params }: Props) {
               </CardContent>
             </Card>
 
-            {/* Ubicación y contacto */}
             <Card>
               <CardHeader>
                 <CardTitle className="text-base">Ubicación y contacto</CardTitle>
@@ -120,7 +120,7 @@ export default function DetalleEntidadPage({ params }: Props) {
                 {entidad.direccion && <InfoRow label="Dirección" value={entidad.direccion} />}
                 {entidad.sitioWeb && (
                   <div className="flex items-start gap-2">
-                    <span className="text-muted-foreground w-28 shrink-0 flex items-center gap-1">
+                    <span className="text-muted-foreground w-36 shrink-0 flex items-center gap-1">
                       <Globe className="h-3.5 w-3.5" />
                       Sitio web
                     </span>
@@ -137,7 +137,6 @@ export default function DetalleEntidadPage({ params }: Props) {
               </CardContent>
             </Card>
 
-            {/* NDA */}
             <Card>
               <CardHeader>
                 <CardTitle className="text-base">NDA</CardTitle>
@@ -163,7 +162,6 @@ export default function DetalleEntidadPage({ params }: Props) {
               </CardContent>
             </Card>
 
-            {/* Notas */}
             {entidad.notas && (
               <Card>
                 <CardHeader>
@@ -182,12 +180,19 @@ export default function DetalleEntidadPage({ params }: Props) {
           </div>
         </TabsContent>
 
-        {/* Tab: Stakeholders */}
         <TabsContent value="stakeholders">
           <StakeholdersTab stakeholders={entidad.stakeholders} />
         </TabsContent>
 
-        {/* Tab: Historial */}
+        <TabsContent value="glosario">
+          <GlosarioTab
+            entidadId={entidadId}
+            entidadNombre={entidad.nombreComercial ?? entidad.razonSocial}
+            stakeholders={entidad.stakeholders}
+            checklistActual={entidad.checklistGlosario}
+          />
+        </TabsContent>
+
         <TabsContent value="historial">
           <HistorialTab entidadId={entidadId} />
         </TabsContent>

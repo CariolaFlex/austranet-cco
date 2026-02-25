@@ -27,6 +27,9 @@ import type {
   RespuestasFactibilidad,
   NivelRiesgoEntidad,
   EntradaHistorial,
+  EntradaGlosario,
+  CrearEntradaGlosarioDTO,
+  ChecklistGlosario,
 } from '@/types';
 
 const COLECCION = 'entidades';
@@ -37,15 +40,20 @@ const COLECCION = 'entidades';
 
 /**
  * Calcula el nivel de completitud del perfil de una entidad.
- * Basado en M1-07 Sección 9 — Estándar de Completitud.
+ * Basado en M1-07 Sección 9 — Estándar de Completitud (actualizado Sprint 2).
+ *
  * NIVEL MÍNIMO: razonSocial, rut, tipo, sector, pais, ≥1 stakeholder, estado
- * NIVEL ESTÁNDAR: mínimo + ≥2 stakeholders con nivelInfluencia + factibilidad completada
- * NIVEL COMPLETO: estándar + NDA resuelto + ≥1 stakeholder con canalComunicacion
+ * NIVEL ESTÁNDAR: mínimo + ≥2 stakeholders con influencia + factibilidad + glosario ≥5
+ * NIVEL COMPLETO: estándar + NDA resuelto + glosario ≥10 + todos con canal + ≥2 alto influencia
+ *
+ * @param entidad - Datos de la entidad
+ * @param glosarioCount - Número de términos en el glosario (default: 0)
  */
 export function calcularNivelCompletitud(
-  entidad: Entidad
+  entidad: Entidad,
+  glosarioCount = 0
 ): 'minimo' | 'estandar' | 'completo' {
-  // NIVEL MÍNIMO
+  // NIVEL MÍNIMO (M1-07 §9)
   const cumpleMinimo =
     !!entidad.razonSocial?.trim() &&
     !!entidad.rut?.trim() &&
@@ -57,26 +65,32 @@ export function calcularNivelCompletitud(
 
   if (!cumpleMinimo) return 'minimo';
 
-  // NIVEL ESTÁNDAR
+  // NIVEL ESTÁNDAR (M1-07 §9): ≥2 stakeholders con influencia + factibilidad + glosario ≥5
   const stakeholdersConInfluencia = entidad.stakeholders.filter(
     (s) => !!s.nivelInfluencia
   );
   const tieneFactibilidad = !!entidad.respuestasFactibilidad;
-
   const cumpleEstandar =
-    stakeholdersConInfluencia.length >= 2 && tieneFactibilidad;
+    stakeholdersConInfluencia.length >= 2 &&
+    tieneFactibilidad &&
+    glosarioCount >= 5;
 
   if (!cumpleEstandar) return 'minimo';
 
-  // NIVEL COMPLETO
+  // NIVEL COMPLETO (M1-07 §9): NDA resuelto + glosario ≥10 + todos stakeholders con canal + ≥2 alto
   const ndaResuelto =
     entidad.tieneNDA === false ||
     (entidad.tieneNDA === true && !!entidad.fechaNDA);
-  const tieneStakeholderConCanal = entidad.stakeholders.some(
+  const todosConCanal = entidad.stakeholders.every(
     (s) => !!s.canalComunicacion?.trim()
   );
+  const stakeholdersAltos = entidad.stakeholders.filter(
+    (s) => s.nivelInfluencia === 'alto'
+  ).length;
 
-  if (ndaResuelto && tieneStakeholderConCanal) return 'completo';
+  if (ndaResuelto && glosarioCount >= 10 && todosConCanal && stakeholdersAltos >= 2) {
+    return 'completo';
+  }
   return 'estandar';
 }
 
@@ -302,4 +316,109 @@ export const entidadesService = {
   // Re-exportar para uso externo en componentes
   calcularNivelCompletitud,
   calcularNivelRiesgo,
+
+  // -------------------------------------------------------
+  // GLOSARIO DE DOMINIO (subcolección entidades/{id}/glosario)
+  // Justificado en M1-03 §5 — Integración al registro de la entidad
+  // -------------------------------------------------------
+  glosario: {
+    /** Obtiene todos los términos del glosario ordenados A-Z */
+    getAll: async (entidadId: string): Promise<EntradaGlosario[]> => {
+      const db = getFirestoreDb();
+      const ref = collection(db, COLECCION, entidadId, 'glosario');
+      const q = query(ref, orderBy('termino', 'asc'));
+      const snap = await getDocs(q);
+      return snap.docs.map((d) =>
+        convertTimestamps({ id: d.id, ...d.data() }) as EntradaGlosario
+      );
+    },
+
+    /** Obtiene un término por ID */
+    getById: async (
+      entidadId: string,
+      terminoId: string
+    ): Promise<EntradaGlosario | null> => {
+      const db = getFirestoreDb();
+      const snap = await getDoc(
+        doc(db, COLECCION, entidadId, 'glosario', terminoId)
+      );
+      if (!snap.exists()) return null;
+      return convertTimestamps({ id: snap.id, ...snap.data() }) as EntradaGlosario;
+    },
+
+    /** Cuenta total de términos (para KPI de completitud M1-07 §7.1) */
+    getCount: async (entidadId: string): Promise<number> => {
+      const db = getFirestoreDb();
+      const ref = collection(db, COLECCION, entidadId, 'glosario');
+      const snap = await getDocs(ref);
+      return snap.size;
+    },
+
+    /** Crea una nueva entrada en el glosario */
+    create: async (
+      entidadId: string,
+      data: CrearEntradaGlosarioDTO
+    ): Promise<EntradaGlosario> => {
+      const db = getFirestoreDb();
+      const uid = getCurrentUserId();
+      const ahora = Timestamp.now();
+      const docRef = await addDoc(
+        collection(db, COLECCION, entidadId, 'glosario'),
+        {
+          ...data,
+          entidadId,
+          creadoEn: ahora,
+          actualizadoEn: ahora,
+          creadoPor: uid,
+        }
+      );
+      return convertTimestamps({
+        id: docRef.id,
+        ...data,
+        entidadId,
+        creadoEn: ahora.toDate(),
+        actualizadoEn: ahora.toDate(),
+        creadoPor: uid,
+      }) as EntradaGlosario;
+    },
+
+    /** Actualiza una entrada del glosario */
+    update: async (
+      entidadId: string,
+      terminoId: string,
+      data: Partial<CrearEntradaGlosarioDTO>
+    ): Promise<EntradaGlosario> => {
+      const db = getFirestoreDb();
+      const ahora = Timestamp.now();
+      await updateDoc(
+        doc(db, COLECCION, entidadId, 'glosario', terminoId),
+        { ...data, actualizadoEn: ahora }
+      );
+      const updated = await entidadesService.glosario.getById(entidadId, terminoId);
+      if (!updated) throw new Error('Término no encontrado después de actualizar');
+      return updated;
+    },
+
+    /**
+     * Hard delete — los términos del glosario SÍ son borrables
+     * a diferencia de las entidades (M1-03 §5 — versionado).
+     */
+    delete: async (entidadId: string, terminoId: string): Promise<void> => {
+      const { deleteDoc } = await import('firebase/firestore');
+      const db = getFirestoreDb();
+      await deleteDoc(doc(db, COLECCION, entidadId, 'glosario', terminoId));
+    },
+  },
+
+  /** Actualiza el checklist operativo del glosario (M1-03 §8) */
+  updateChecklistGlosario: async (
+    entidadId: string,
+    checklist: Partial<ChecklistGlosario>
+  ): Promise<void> => {
+    const db = getFirestoreDb();
+    await updateDoc(doc(db, COLECCION, entidadId), {
+      checklistGlosario: checklist,
+      actualizadoEn: Timestamp.now(),
+    });
+  },
 };
