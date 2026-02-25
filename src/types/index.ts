@@ -109,7 +109,7 @@ export interface Entidad {
 export interface MiembroEquipo {
   usuarioId: string
   nombre: string
-  rol: string // PM, analista, arquitecto, desarrollador, QA
+  rol: string // PM, analista, arquitecto, desarrollador, QA, scrum_master, ux_designer, devops, product_owner
   rolCliente?: string // sponsor, product_owner, stakeholder
   esExterno: boolean
 }
@@ -124,6 +124,41 @@ export interface RiesgoProyecto {
   mitigacion?: string
   responsable?: string
   estado: 'activo' | 'mitigado' | 'materializado' | 'cerrado'
+  // v2 — M2-03 Sección 7
+  origen?: 'heredado_entidad' | 'identificado_proyecto'
+}
+
+// Hito de proyecto (M2-01 §10)
+export type EstadoHito = 'pendiente' | 'en_riesgo' | 'completado' | 'incumplido'
+
+export interface Hito {
+  id: string
+  nombre: string
+  descripcion: string
+  fechaEstimada: Date
+  fechaReal?: Date
+  estado: EstadoHito
+  entregable?: string
+  responsable: string // nombre del responsable o usuarioId
+}
+
+// Presupuesto del proyecto (M2-02 §7)
+export type MetodoEstimacion =
+  | 'juicio_experto'
+  | 'analogia'
+  | 'descomposicion'
+  | 'cocomo_ii'
+  | 'puntos_funcion'
+  | 'planning_poker'
+
+export interface PresupuestoProyecto {
+  metodoUsado: MetodoEstimacion
+  estimacionMinima: number
+  estimacionNominal: number
+  estimacionMaxima: number
+  moneda: string
+  supuestos: string[]
+  exclusiones: string[]
 }
 
 export interface Proyecto {
@@ -135,13 +170,16 @@ export interface Proyecto {
   estado: EstadoProyecto
   criticidad: CriticidadProyecto
   metodologia: MetodologiaProyecto
+  justificacionMetodologia?: string // requerido si criticidad = alta/critica (M2-01 §9)
   clienteId: string // referencia a Entidad
   proveedoresIds?: string[] // referencias a Entidades
   equipo: MiembroEquipo[]
   riesgos: RiesgoProyecto[]
+  hitos: Hito[] // calendarización (M2-01 §10)
+  presupuesto?: PresupuestoProyecto // estimación de costos (M2-02 §7)
   fechaInicio?: Date
   fechaFinEstimada?: Date
-  presupuestoEstimado?: number
+  presupuestoEstimado?: number // mantener para compatibilidad (= presupuesto.estimacionNominal)
   moneda?: string
   estadoSRS: EstadoSRS
   creadoEn: Date
@@ -240,6 +278,37 @@ export type CrearEntidadDTO = Omit<Entidad, 'id' | 'creadoEn' | 'actualizadoEn' 
 
 /** DTO para actualizar parcialmente una entidad */
 export type ActualizarEntidadDTO = Partial<Omit<Entidad, 'id' | 'creadoEn' | 'creadoPor'>>
+
+// ---------- TIPOS AUXILIARES — MÓDULO 2 (Sprint 3) ----------
+
+/** Historial de cambios de un proyecto */
+export interface EntradaHistorialProyecto {
+  id: string
+  proyectoId: string
+  fechaHora: Date
+  usuarioId: string
+  usuarioNombre: string
+  tipoAccion: 'creacion' | 'actualizacion_datos' | 'cambio_estado' | 'gestion_equipo' | 'gestion_riesgos' | 'gestion_hitos'
+  campoModificado?: string
+  valorAnterior?: string
+  valorNuevo?: string
+  motivo?: string
+}
+
+/** Filtros para la consulta de proyectos */
+export interface FiltrosProyecto {
+  estado?: EstadoProyecto
+  tipo?: TipoProyecto
+  clienteId?: string
+  criticidad?: CriticidadProyecto
+  busqueda?: string
+}
+
+/** DTO para crear un proyecto */
+export type CrearProyectoDTO = Omit<Proyecto, 'id' | 'creadoEn' | 'actualizadoEn' | 'creadoPor' | 'estadoSRS'>
+
+/** DTO para actualizar parcialmente un proyecto */
+export type ActualizarProyectoDTO = Partial<Omit<Proyecto, 'id' | 'creadoEn' | 'creadoPor'>>
 
 // ---------- GLOSARIO DE DOMINIO (MÓDULO 1 Sprint 2) ----------
 // Justificado en M1-03 §7 — Plantilla operativa de entrada del glosario
