@@ -69,6 +69,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const auth = getFirebaseAuth();
     await firebaseSignOut(auth);
     setUser(null);
+    // Limpiar cookie de sesión del middleware
+    if (typeof document !== 'undefined') {
+      document.cookie = '__session=; path=/; max-age=0';
+    }
   };
 
   return (
