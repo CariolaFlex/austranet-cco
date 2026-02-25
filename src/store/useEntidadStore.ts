@@ -1,36 +1,29 @@
 // ============================================================
-// Austranet CCO - Entidad Store (Zustand) — STUB
-// Módulo 1: Registro y Gestión de Clientes y Proveedores
-// Estado: STUB — pendiente de implementación
+// STORE: useEntidadStore — Módulo 1
+// Estado global de entidades con Zustand
 // ============================================================
 
 import { create } from 'zustand';
-import type { Entidad } from '@/types';
+import type { Entidad, FiltrosEntidad } from '@/types';
 
 interface EntidadState {
-  // Estado
-  entidades: Entidad[];
   entidadSeleccionada: Entidad | null;
-  isLoading: boolean;
-  error: string | null;
+  filtrosActivos: FiltrosEntidad;
+  vistaActual: 'tabla' | 'tarjetas';
 
-  // Acciones — por implementar
-  setEntidades: (entidades: Entidad[]) => void;
   setEntidadSeleccionada: (entidad: Entidad | null) => void;
-  setLoading: (loading: boolean) => void;
-  setError: (error: string | null) => void;
-  reset: () => void;
+  setFiltros: (filtros: FiltrosEntidad) => void;
+  clearFiltros: () => void;
+  setVista: (vista: 'tabla' | 'tarjetas') => void;
 }
 
 export const useEntidadStore = create<EntidadState>()((set) => ({
-  entidades: [],
   entidadSeleccionada: null,
-  isLoading: false,
-  error: null,
+  filtrosActivos: {},
+  vistaActual: 'tabla',
 
-  setEntidades: (entidades) => set({ entidades }),
   setEntidadSeleccionada: (entidad) => set({ entidadSeleccionada: entidad }),
-  setLoading: (isLoading) => set({ isLoading }),
-  setError: (error) => set({ error }),
-  reset: () => set({ entidades: [], entidadSeleccionada: null, isLoading: false, error: null }),
+  setFiltros: (filtros) => set({ filtrosActivos: filtros }),
+  clearFiltros: () => set({ filtrosActivos: {} }),
+  setVista: (vista) => set({ vistaActual: vista }),
 }));

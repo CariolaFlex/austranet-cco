@@ -95,6 +95,8 @@ export interface Entidad {
   tieneNDA: boolean
   fechaNDA?: Date
   notas?: string
+  // Agregado en Sprint 1 — justificado en M1-04 §5: almacenar respuestas para auditoría y recálculo
+  respuestasFactibilidad?: RespuestasFactibilidad
   creadoEn: Date
   actualizadoEn: Date
   creadoPor: string
@@ -187,3 +189,52 @@ export interface Usuario {
   activo: boolean
   creadoEn: Date
 }
+
+// ---------- TIPOS AUXILIARES — MÓDULO 1 (Sprint 1) ----------
+
+/** Respuestas al formulario de evaluación de factibilidad (M1-04 §5.1) */
+export interface RespuestasFactibilidad {
+  // Dimensión técnica
+  t1_sistemasDocumentados: 'si' | 'parcial' | 'no'      // peso 10%
+  t2_experienciaSoftware: 'si' | 'no'                    // peso 15%
+  t3_infraestructura: 'si' | 'parcial' | 'no'           // peso 10%
+  t4_procesosDocumentados: 'si' | 'parcial' | 'no'      // peso 5%
+  // Dimensión económica
+  e5_presupuesto: 'si' | 'en_proceso' | 'no'            // peso 20%
+  e6_decisoresAccesibles: 'si' | 'no'                    // peso 10%
+  e7_presupuestoOperacion: 'si' | 'parcial' | 'no'      // peso 5%
+  // Dimensión organizacional
+  o8_stakeholdersDisponibles: 'si' | 'parcial' | 'no'   // peso 10%
+  o9_patrocinadorEjecutivo: 'si' | 'no'                  // peso 10%
+  o10_experienciaCambio: 'si' | 'parcial' | 'no'        // peso 3%
+  o11_alineacionEstrategica: 'si' | 'no' | 'desconocido' // peso 2%
+}
+
+/** Entrada del historial de cambios de una entidad */
+export interface EntradaHistorial {
+  id: string
+  entidadId: string
+  fechaHora: Date
+  usuarioId: string
+  usuarioNombre: string
+  tipoAccion: 'creacion' | 'actualizacion_datos' | 'cambio_estado' | 'gestion_stakeholders'
+  campoModificado?: string
+  valorAnterior?: string
+  valorNuevo?: string
+  motivo?: string
+}
+
+/** Filtros para la consulta de entidades */
+export interface FiltrosEntidad {
+  tipo?: TipoEntidad
+  estado?: EstadoEntidad
+  sector?: SectorEntidad
+  nivelRiesgo?: NivelRiesgoEntidad
+  busqueda?: string
+}
+
+/** DTO para crear una entidad (sin campos auto-generados) */
+export type CrearEntidadDTO = Omit<Entidad, 'id' | 'creadoEn' | 'actualizadoEn' | 'creadoPor'>
+
+/** DTO para actualizar parcialmente una entidad */
+export type ActualizarEntidadDTO = Partial<Omit<Entidad, 'id' | 'creadoEn' | 'creadoPor'>>

@@ -1,29 +1,305 @@
 // ============================================================
 // SERVICIO: Entidades — Módulo 1
-// Estado: STUB — pendiente de implementación
 // Documentación: /docs/modulo-1-entidades/
 // ============================================================
 
-import type { Entidad } from '@/types';
+import {
+  collection,
+  doc,
+  getDoc,
+  getDocs,
+  addDoc,
+  updateDoc,
+  query,
+  where,
+  orderBy,
+  Timestamp,
+} from 'firebase/firestore';
+import { v4 as uuidv4 } from 'uuid';
+import { getFirestoreDb, convertTimestamps } from '@/lib/firebase/firestore';
+import { getFirebaseAuth } from '@/lib/firebase/auth';
+import type {
+  Entidad,
+  EstadoEntidad,
+  FiltrosEntidad,
+  CrearEntidadDTO,
+  ActualizarEntidadDTO,
+  RespuestasFactibilidad,
+  NivelRiesgoEntidad,
+  EntradaHistorial,
+} from '@/types';
+
+const COLECCION = 'entidades';
+
+// -------------------------------------------------------
+// FUNCIONES PURAS DE CÁLCULO (sin efectos secundarios)
+// -------------------------------------------------------
+
+/**
+ * Calcula el nivel de completitud del perfil de una entidad.
+ * Basado en M1-07 Sección 9 — Estándar de Completitud.
+ * NIVEL MÍNIMO: razonSocial, rut, tipo, sector, pais, ≥1 stakeholder, estado
+ * NIVEL ESTÁNDAR: mínimo + ≥2 stakeholders con nivelInfluencia + factibilidad completada
+ * NIVEL COMPLETO: estándar + NDA resuelto + ≥1 stakeholder con canalComunicacion
+ */
+export function calcularNivelCompletitud(
+  entidad: Entidad
+): 'minimo' | 'estandar' | 'completo' {
+  // NIVEL MÍNIMO
+  const cumpleMinimo =
+    !!entidad.razonSocial?.trim() &&
+    !!entidad.rut?.trim() &&
+    !!entidad.tipo &&
+    !!entidad.sector &&
+    !!entidad.pais?.trim() &&
+    entidad.stakeholders.length >= 1 &&
+    !!entidad.estado;
+
+  if (!cumpleMinimo) return 'minimo';
+
+  // NIVEL ESTÁNDAR
+  const stakeholdersConInfluencia = entidad.stakeholders.filter(
+    (s) => !!s.nivelInfluencia
+  );
+  const tieneFactibilidad = !!entidad.respuestasFactibilidad;
+
+  const cumpleEstandar =
+    stakeholdersConInfluencia.length >= 2 && tieneFactibilidad;
+
+  if (!cumpleEstandar) return 'minimo';
+
+  // NIVEL COMPLETO
+  const ndaResuelto =
+    entidad.tieneNDA === false ||
+    (entidad.tieneNDA === true && !!entidad.fechaNDA);
+  const tieneStakeholderConCanal = entidad.stakeholders.some(
+    (s) => !!s.canalComunicacion?.trim()
+  );
+
+  if (ndaResuelto && tieneStakeholderConCanal) return 'completo';
+  return 'estandar';
+}
+
+/**
+ * Calcula el nivel de riesgo de una entidad a partir de las respuestas
+ * al formulario de evaluación de factibilidad.
+ * Basado en M1-04 Sección 5.2 — umbrales ponderados.
+ */
+export function calcularNivelRiesgo(
+  respuestas: RespuestasFactibilidad
+): NivelRiesgoEntidad {
+  let pesoEnRiesgo = 0;
+
+  // Técnica (total: 40%)
+  if (respuestas.t1_sistemasDocumentados !== 'si') pesoEnRiesgo += 10;
+  if (respuestas.t2_experienciaSoftware === 'no') pesoEnRiesgo += 15;
+  if (respuestas.t3_infraestructura !== 'si') pesoEnRiesgo += 10;
+  if (respuestas.t4_procesosDocumentados !== 'si') pesoEnRiesgo += 5;
+
+  // Económica (total: 35%)
+  if (respuestas.e5_presupuesto !== 'si') pesoEnRiesgo += 20;
+  if (respuestas.e6_decisoresAccesibles === 'no') pesoEnRiesgo += 10;
+  if (respuestas.e7_presupuestoOperacion !== 'si') pesoEnRiesgo += 5;
+
+  // Organizacional (total: 25%)
+  if (respuestas.o8_stakeholdersDisponibles !== 'si') pesoEnRiesgo += 10;
+  if (respuestas.o9_patrocinadorEjecutivo === 'no') pesoEnRiesgo += 10;
+  if (respuestas.o10_experienciaCambio !== 'si') pesoEnRiesgo += 3;
+  if (respuestas.o11_alineacionEstrategica !== 'si') pesoEnRiesgo += 2;
+
+  // Umbrales M1-04 §5.2
+  if (pesoEnRiesgo <= 30) return 'bajo';
+  if (pesoEnRiesgo <= 50) return 'medio';
+  if (pesoEnRiesgo <= 70) return 'alto';
+  return 'critico';
+}
+
+// -------------------------------------------------------
+// HELPERS INTERNOS
+// -------------------------------------------------------
+
+function getCurrentUserId(): string {
+  const auth = getFirebaseAuth();
+  const uid = auth.currentUser?.uid;
+  if (!uid) throw new Error('Usuario no autenticado');
+  return uid;
+}
+
+function getCurrentUserName(): string {
+  const auth = getFirebaseAuth();
+  return auth.currentUser?.displayName || auth.currentUser?.email || 'Sistema';
+}
+
+async function registrarHistorial(
+  entidadId: string,
+  entrada: Omit<EntradaHistorial, 'id' | 'entidadId' | 'fechaHora'>
+): Promise<void> {
+  const db = getFirestoreDb();
+  const historialRef = collection(db, COLECCION, entidadId, 'historial');
+  await addDoc(historialRef, {
+    ...entrada,
+    entidadId,
+    fechaHora: Timestamp.now(),
+  });
+}
+
+function docToEntidad(id: string, data: Record<string, unknown>): Entidad {
+  return convertTimestamps({ id, ...data }) as Entidad;
+}
+
+// -------------------------------------------------------
+// SERVICIO PRINCIPAL
+// -------------------------------------------------------
 
 export const entidadesService = {
-  getAll: async (): Promise<Entidad[]> => {
-    throw new Error('entidadesService.getAll: no implementado aún');
+  /**
+   * Obtiene todas las entidades con filtros opcionales.
+   * Filtros de tipo/estado/sector/nivelRiesgo se aplican en Firestore.
+   * El filtro de búsqueda por texto se aplica en cliente.
+   */
+  getAll: async (filtros?: FiltrosEntidad): Promise<Entidad[]> => {
+    const db = getFirestoreDb();
+    const constraints = [];
+
+    if (filtros?.tipo) constraints.push(where('tipo', '==', filtros.tipo));
+    if (filtros?.estado) constraints.push(where('estado', '==', filtros.estado));
+    if (filtros?.sector) constraints.push(where('sector', '==', filtros.sector));
+    if (filtros?.nivelRiesgo) constraints.push(where('nivelRiesgo', '==', filtros.nivelRiesgo));
+    constraints.push(orderBy('actualizadoEn', 'desc'));
+
+    const q = query(collection(db, COLECCION), ...constraints);
+    const snapshot = await getDocs(q);
+    let entidades = snapshot.docs.map((d) => docToEntidad(d.id, d.data()));
+
+    if (filtros?.busqueda?.trim()) {
+      const busq = filtros.busqueda.toLowerCase();
+      entidades = entidades.filter(
+        (e) =>
+          e.razonSocial?.toLowerCase().includes(busq) ||
+          e.nombreComercial?.toLowerCase().includes(busq) ||
+          e.rut?.toLowerCase().includes(busq)
+      );
+    }
+
+    return entidades;
   },
 
-  getById: async (_id: string): Promise<Entidad | null> => {
-    throw new Error('entidadesService.getById: no implementado aún');
+  /** Obtiene una entidad por ID. Retorna null si no existe. */
+  getById: async (id: string): Promise<Entidad | null> => {
+    const db = getFirestoreDb();
+    const snap = await getDoc(doc(db, COLECCION, id));
+    if (!snap.exists()) return null;
+    return docToEntidad(snap.id, snap.data());
   },
 
-  create: async (_data: Omit<Entidad, 'id' | 'creadoEn' | 'actualizadoEn'>): Promise<Entidad> => {
-    throw new Error('entidadesService.create: no implementado aún');
+  /** Crea una nueva entidad. El estado inicial siempre es 'activo'. */
+  create: async (data: CrearEntidadDTO): Promise<Entidad> => {
+    const db = getFirestoreDb();
+    const uid = getCurrentUserId();
+    const userName = getCurrentUserName();
+    const ahora = Timestamp.now();
+
+    const docData = {
+      ...data,
+      estado: 'activo' as EstadoEntidad,
+      stakeholders: data.stakeholders.map((s) => ({
+        ...s,
+        id: s.id || uuidv4(),
+      })),
+      creadoEn: ahora,
+      actualizadoEn: ahora,
+      creadoPor: uid,
+    };
+
+    const docRef = await addDoc(collection(db, COLECCION), docData);
+
+    await registrarHistorial(docRef.id, {
+      usuarioId: uid,
+      usuarioNombre: userName,
+      tipoAccion: 'creacion',
+      valorNuevo: data.razonSocial,
+    });
+
+    return docToEntidad(docRef.id, {
+      ...docData,
+      creadoEn: ahora.toDate(),
+      actualizadoEn: ahora.toDate(),
+    });
   },
 
-  update: async (_id: string, _data: Partial<Entidad>): Promise<Entidad> => {
-    throw new Error('entidadesService.update: no implementado aún');
+  /** Actualiza una entidad existente. Registra cambio en historial. */
+  update: async (id: string, data: ActualizarEntidadDTO): Promise<Entidad> => {
+    const db = getFirestoreDb();
+    const uid = getCurrentUserId();
+    const userName = getCurrentUserName();
+    const ahora = Timestamp.now();
+
+    const updateData: Record<string, unknown> = {
+      ...data,
+      actualizadoEn: ahora,
+    };
+
+    if (data.stakeholders) {
+      updateData.stakeholders = data.stakeholders.map((s) => ({
+        ...s,
+        id: s.id || uuidv4(),
+      }));
+    }
+
+    await updateDoc(doc(db, COLECCION, id), updateData);
+
+    await registrarHistorial(id, {
+      usuarioId: uid,
+      usuarioNombre: userName,
+      tipoAccion: 'actualizacion_datos',
+    });
+
+    const updated = await entidadesService.getById(id);
+    if (!updated) throw new Error('Entidad no encontrada después de actualizar');
+    return updated;
   },
 
-  delete: async (_id: string): Promise<void> => {
-    throw new Error('entidadesService.delete: no implementado aún');
+  /**
+   * Cambia el estado de una entidad. El motivo es obligatorio.
+   * Registra el cambio en historial (M1-06 §4.3 — Solicitud de Cambio).
+   */
+  updateEstado: async (
+    id: string,
+    estado: EstadoEntidad,
+    motivo: string
+  ): Promise<void> => {
+    const db = getFirestoreDb();
+    const uid = getCurrentUserId();
+    const userName = getCurrentUserName();
+
+    const actual = await entidadesService.getById(id);
+    const estadoAnterior = actual?.estado;
+
+    await updateDoc(doc(db, COLECCION, id), {
+      estado,
+      actualizadoEn: Timestamp.now(),
+    });
+
+    await registrarHistorial(id, {
+      usuarioId: uid,
+      usuarioNombre: userName,
+      tipoAccion: 'cambio_estado',
+      campoModificado: 'estado',
+      valorAnterior: estadoAnterior,
+      valorNuevo: estado,
+      motivo,
+    });
   },
+
+  /**
+   * Soft delete: cambia estado a 'inactivo'.
+   * NO elimina el documento de Firestore (M1-06 §8 — política de control de configuración).
+   */
+  delete: async (id: string): Promise<void> => {
+    await entidadesService.updateEstado(id, 'inactivo', 'Entidad eliminada por el usuario');
+  },
+
+  // Re-exportar para uso externo en componentes
+  calcularNivelCompletitud,
+  calcularNivelRiesgo,
 };
