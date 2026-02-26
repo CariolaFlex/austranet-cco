@@ -1,7 +1,8 @@
 'use client';
 
 // ============================================================
-// Austranet CCO - Header Component
+// Austranet CCO - Header Component — Sprint 5
+// Agrega: BusquedaGlobal + NotificacionesBadge
 // ============================================================
 
 import React, { useState, useRef, useEffect } from 'react';
@@ -23,6 +24,8 @@ import {
 import { useTheme } from 'next-themes';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
+import { BusquedaGlobal } from '@/components/busqueda/BusquedaGlobal';
+import { NotificacionesBadge } from '@/components/layout/NotificacionesBadge';
 
 // ── Breadcrumb helpers ─────────────────────────────────────
 type Crumb = { label: string; href?: string };
@@ -138,8 +141,14 @@ export function Header() {
         </nav>
       </div>
 
-      {/* ── Right: theme toggle + user ────────────── */}
+      {/* ── Right: search + notifications + theme + user ── */}
       <div className="flex items-center gap-1">
+        {/* Búsqueda global */}
+        <BusquedaGlobal />
+
+        {/* Notificaciones */}
+        <NotificacionesBadge />
+
         {/* Theme toggle */}
         <Button
           variant="ghost"
