@@ -1,8 +1,9 @@
 'use client'
 
 // ============================================================
-// COMPONENTE: ProyectoDetalle — Sprint 3D
+// COMPONENTE: ProyectoDetalle — Sprint 3D + Sprint 4
 // Tabs: Resumen | Equipo | Riesgos | Hitos | Presupuesto | Historial
+// Sprint 4: KPIs, CambiarEstadoRiesgo, CerrarProyecto, CancelarProyecto
 // ============================================================
 
 import { useState } from 'react'
@@ -20,9 +21,19 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/lib'
 import { ESTADO_PROYECTO_CONFIG, ROUTES } from '@/constants'
-import { CRITICIDAD_CONFIG, TIPO_PROYECTO_CONFIG, METODOLOGIAS_CONFIG, METODOS_ESTIMACION_CONFIG } from '@/constants/proyectos'
+import {
+  CRITICIDAD_CONFIG,
+  TIPO_PROYECTO_CONFIG,
+  METODOLOGIAS_CONFIG,
+  METODOS_ESTIMACION_CONFIG,
+} from '@/constants/proyectos'
 import { useProyectoHistorial } from '@/hooks/useProyectos'
-import type { Proyecto, Entidad, RiesgoProyecto, Hito } from '@/types'
+import { ProyectoKPIs } from './ProyectoKPIs'
+import { CambiarEstadoModal } from './CambiarEstadoModal'
+import { CambiarEstadoRiesgoModal } from './CambiarEstadoRiesgoModal'
+import { CerrarProyectoModal } from './CerrarProyectoModal'
+import { CancelarProyectoModal } from './CancelarProyectoModal'
+import type { Proyecto, Entidad, RiesgoProyecto } from '@/types'
 
 // -------------------------------------------------------
 // COLOR HELPERS
@@ -88,9 +99,21 @@ export function ProyectoDetalle({ proyecto, entidad, onCambiarEstado }: Proyecto
   const router = useRouter()
   const [tabActivo, setTabActivo] = useState('resumen')
 
+  // Modal state
+  const [showCambiarEstado, setShowCambiarEstado] = useState(false)
+  const [showCerrar, setShowCerrar] = useState(false)
+  const [showCancelar, setShowCancelar] = useState(false)
+  const [riesgoParaCambio, setRiesgoParaCambio] = useState<RiesgoProyecto | null>(null)
+
+  // Si viene un handler externo (desde la lista), úsalo; si no, modal interno
+  const handleCambiarEstado = onCambiarEstado ?? (() => setShowCambiarEstado(true))
+
   const estadoCfg = ESTADO_PROYECTO_CONFIG[proyecto.estado]
   const criticidadCfg = CRITICIDAD_CONFIG[proyecto.criticidad]
   const tipoCfg = TIPO_PROYECTO_CONFIG[proyecto.tipo]
+
+  const esActivo = ['activo_en_definicion', 'activo_en_desarrollo'].includes(proyecto.estado)
+  const puedeCancelar = !['completado', 'cancelado'].includes(proyecto.estado)
 
   return (
     <div className="space-y-6">
@@ -106,15 +129,39 @@ export function ProyectoDetalle({ proyecto, entidad, onCambiarEstado }: Proyecto
             <h1 className="text-2xl font-bold text-foreground">{proyecto.nombre}</h1>
             <p className="text-muted-foreground font-mono text-sm mt-1">{proyecto.codigo}</p>
           </div>
-          <div className="flex gap-2">
-            <Button variant="outline" size="sm" onClick={() => router.push(ROUTES.PROYECTO_EDITAR(proyecto.id))}>
+          <div className="flex gap-2 flex-wrap">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => router.push(ROUTES.PROYECTO_EDITAR(proyecto.id))}
+            >
               <Pencil className="mr-2 h-4 w-4" />
               Editar
             </Button>
-            <Button variant="outline" size="sm" onClick={onCambiarEstado}>
+            <Button variant="outline" size="sm" onClick={handleCambiarEstado}>
               <RefreshCw className="mr-2 h-4 w-4" />
               Cambiar estado
             </Button>
+            {esActivo && (
+              <Button
+                size="sm"
+                onClick={() => setShowCerrar(true)}
+                className="bg-green-600 hover:bg-green-700 text-white"
+              >
+                <CheckCircle className="mr-2 h-4 w-4" />
+                Cerrar proyecto
+              </Button>
+            )}
+            {puedeCancelar && (
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={() => setShowCancelar(true)}
+              >
+                <XCircle className="mr-2 h-4 w-4" />
+                Cancelar
+              </Button>
+            )}
           </div>
         </div>
       </div>
@@ -145,10 +192,30 @@ export function ProyectoDetalle({ proyecto, entidad, onCambiarEstado }: Proyecto
       {/* Tab content */}
       {tabActivo === 'resumen' && <TabResumen proyecto={proyecto} entidad={entidad} />}
       {tabActivo === 'equipo' && <TabEquipo proyecto={proyecto} />}
-      {tabActivo === 'riesgos' && <TabRiesgos proyecto={proyecto} />}
+      {tabActivo === 'riesgos' && (
+        <TabRiesgos proyecto={proyecto} onCambiarEstadoRiesgo={setRiesgoParaCambio} />
+      )}
       {tabActivo === 'hitos' && <TabHitos proyecto={proyecto} />}
       {tabActivo === 'presupuesto' && <TabPresupuesto proyecto={proyecto} />}
       {tabActivo === 'historial' && <TabHistorial proyectoId={proyecto.id} />}
+
+      {/* Modals */}
+      {showCambiarEstado && (
+        <CambiarEstadoModal proyecto={proyecto} onClose={() => setShowCambiarEstado(false)} />
+      )}
+      {showCerrar && (
+        <CerrarProyectoModal proyecto={proyecto} onClose={() => setShowCerrar(false)} />
+      )}
+      {showCancelar && (
+        <CancelarProyectoModal proyecto={proyecto} onClose={() => setShowCancelar(false)} />
+      )}
+      {riesgoParaCambio && (
+        <CambiarEstadoRiesgoModal
+          proyectoId={proyecto.id}
+          riesgo={riesgoParaCambio}
+          onClose={() => setRiesgoParaCambio(null)}
+        />
+      )}
     </div>
   )
 }
@@ -161,110 +228,151 @@ function TabResumen({ proyecto, entidad }: { proyecto: Proyecto; entidad: Entida
   const metCfg = METODOLOGIAS_CONFIG[proyecto.metodologia]
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-      <div className="lg:col-span-2 space-y-6">
-        {/* Datos generales */}
-        <Card>
-          <CardHeader><CardTitle className="text-base">Datos generales</CardTitle></CardHeader>
-          <CardContent>
-            <dl className="grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
-              {[
-                { label: 'Código', value: proyecto.codigo },
-                { label: 'Nombre', value: proyecto.nombre },
-                { label: 'Descripción', value: proyecto.descripcion, full: true },
-                { label: 'Tipo', value: TIPO_PROYECTO_CONFIG[proyecto.tipo]?.label ?? proyecto.tipo },
-                { label: 'Criticidad', value: CRITICIDAD_CONFIG[proyecto.criticidad]?.label ?? proyecto.criticidad },
-                { label: 'Estado', value: ESTADO_PROYECTO_CONFIG[proyecto.estado]?.label ?? proyecto.estado },
-                { label: 'Inicio', value: proyecto.fechaInicio ? format(new Date(proyecto.fechaInicio), 'dd/MM/yyyy', { locale: es }) : '—' },
-                { label: 'Fin estimado', value: proyecto.fechaFinEstimada ? format(new Date(proyecto.fechaFinEstimada), 'dd/MM/yyyy', { locale: es }) : '—' },
-                { label: 'Registrado', value: format(new Date(proyecto.creadoEn), 'dd/MM/yyyy HH:mm', { locale: es }) },
-                { label: 'Actualizado', value: format(new Date(proyecto.actualizadoEn), 'dd/MM/yyyy HH:mm', { locale: es }) },
-              ].map((item) => (
-                <div key={item.label} className={item.full ? 'col-span-2' : ''}>
-                  <dt className="text-muted-foreground">{item.label}</dt>
-                  <dd className="font-medium mt-0.5">{item.value}</dd>
-                </div>
-              ))}
-            </dl>
-          </CardContent>
-        </Card>
+    <div className="space-y-6">
+      {/* KPIs Panel — M2-04 §10 */}
+      <ProyectoKPIs proyecto={proyecto} />
 
-        {/* Metodología */}
-        <Card>
-          <CardHeader><CardTitle className="text-base flex items-center gap-2"><BarChart3 className="h-4 w-4" /> Metodología</CardTitle></CardHeader>
-          <CardContent>
-            <div className="flex items-center gap-2 mb-3">
-              <span className="font-semibold">{metCfg?.label ?? proyecto.metodologia}</span>
-              <Badge variant="outline" className={`text-xs ${metCfg?.tipo === 'agil' ? 'text-green-700 border-green-300' : metCfg?.tipo === 'hibrido' ? 'text-purple-700 border-purple-300' : 'text-blue-700 border-blue-300'}`}>
-                {metCfg?.tipo ?? '—'}
-              </Badge>
-            </div>
-            {metCfg && (
-              <dl className="grid grid-cols-2 gap-3 text-sm mb-3">
-                <div><dt className="text-muted-foreground">Mejor para</dt><dd className="font-medium mt-0.5">{metCfg.mejorPara}</dd></div>
-                <div><dt className="text-muted-foreground">Documentación</dt><dd className="font-medium mt-0.5">{metCfg.documentacion}</dd></div>
-                <div><dt className="text-muted-foreground">Tamaño equipo</dt><dd className="font-medium mt-0.5">{metCfg.tamanoEquipo}</dd></div>
-                <div><dt className="text-muted-foreground">Estabilidad reqs.</dt><dd className="font-medium mt-0.5">{metCfg.estabilidadReqs}</dd></div>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-2 space-y-6">
+          {/* Datos generales */}
+          <Card>
+            <CardHeader><CardTitle className="text-base">Datos generales</CardTitle></CardHeader>
+            <CardContent>
+              <dl className="grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
+                {[
+                  { label: 'Código', value: proyecto.codigo },
+                  { label: 'Nombre', value: proyecto.nombre },
+                  { label: 'Descripción', value: proyecto.descripcion, full: true },
+                  { label: 'Tipo', value: TIPO_PROYECTO_CONFIG[proyecto.tipo]?.label ?? proyecto.tipo },
+                  { label: 'Criticidad', value: CRITICIDAD_CONFIG[proyecto.criticidad]?.label ?? proyecto.criticidad },
+                  { label: 'Estado', value: ESTADO_PROYECTO_CONFIG[proyecto.estado]?.label ?? proyecto.estado },
+                  { label: 'Inicio', value: proyecto.fechaInicio ? format(new Date(proyecto.fechaInicio), 'dd/MM/yyyy', { locale: es }) : '—' },
+                  { label: 'Fin estimado', value: proyecto.fechaFinEstimada ? format(new Date(proyecto.fechaFinEstimada), 'dd/MM/yyyy', { locale: es }) : '—' },
+                  { label: 'Registrado', value: format(new Date(proyecto.creadoEn), 'dd/MM/yyyy HH:mm', { locale: es }) },
+                  { label: 'Actualizado', value: format(new Date(proyecto.actualizadoEn), 'dd/MM/yyyy HH:mm', { locale: es }) },
+                ].map((item) => (
+                  <div key={item.label} className={item.full ? 'col-span-2' : ''}>
+                    <dt className="text-muted-foreground">{item.label}</dt>
+                    <dd className="font-medium mt-0.5">{item.value}</dd>
+                  </div>
+                ))}
               </dl>
-            )}
-            {proyecto.justificacionMetodologia && (
-              <div className="p-3 bg-muted/40 rounded-lg text-sm">
-                <p className="text-muted-foreground text-xs mb-1">Justificación del equipo:</p>
-                <p>{proyecto.justificacionMetodologia}</p>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      </div>
+            </CardContent>
+          </Card>
 
-      {/* Cliente vinculado */}
-      <div className="space-y-4">
-        <Card>
-          <CardHeader><CardTitle className="text-base">Cliente vinculado (M1)</CardTitle></CardHeader>
-          <CardContent>
-            {entidad ? (
-              <div className="space-y-2 text-sm">
-                <p className="font-semibold text-base">{entidad.razonSocial}</p>
-                {entidad.nombreComercial && <p className="text-muted-foreground">{entidad.nombreComercial}</p>}
-                <div className="flex flex-wrap gap-2 mt-2">
-                  <ColorBadge color={entidad.estado === 'activo' ? 'green' : 'gray'} label={entidad.estado} />
-                  <ColorBadge color={entidad.nivelRiesgo === 'bajo' ? 'green' : entidad.nivelRiesgo === 'medio' ? 'yellow' : entidad.nivelRiesgo === 'alto' ? 'orange' : 'red'} label={`Riesgo: ${entidad.nivelRiesgo}`} />
-                </div>
-                <div className="pt-2">
-                  <p className="text-muted-foreground">Sector: <span className="text-foreground capitalize">{entidad.sector}</span></p>
-                  <p className="text-muted-foreground">País: <span className="text-foreground">{entidad.pais}</span></p>
-                  <p className="text-muted-foreground">Stakeholders: <span className="text-foreground">{entidad.stakeholders?.length ?? 0}</span></p>
-                </div>
-                <Link href={ROUTES.ENTIDAD_DETALLE(entidad.id)} className="flex items-center gap-1 text-primary hover:underline text-sm mt-2">
-                  <ExternalLink className="h-3 w-3" />
-                  Ver perfil completo en M1
-                </Link>
+          {/* Metodología */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base flex items-center gap-2">
+                <BarChart3 className="h-4 w-4" /> Metodología
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="flex items-center gap-2 mb-3">
+                <span className="font-semibold">{metCfg?.label ?? proyecto.metodologia}</span>
+                <Badge
+                  variant="outline"
+                  className={`text-xs ${
+                    metCfg?.tipo === 'agil'
+                      ? 'text-green-700 border-green-300'
+                      : metCfg?.tipo === 'hibrido'
+                      ? 'text-purple-700 border-purple-300'
+                      : 'text-blue-700 border-blue-300'
+                  }`}
+                >
+                  {metCfg?.tipo ?? '—'}
+                </Badge>
               </div>
-            ) : (
-              <p className="text-sm text-muted-foreground">Entidad no encontrada</p>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* KPIs rápidos */}
-        <Card>
-          <CardHeader><CardTitle className="text-base">Métricas del proyecto</CardTitle></CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-2 gap-3 text-center">
-              {[
-                { label: 'Miembros', value: proyecto.equipo?.length ?? 0, color: 'text-blue-600' },
-                { label: 'Riesgos', value: proyecto.riesgos?.length ?? 0, color: 'text-orange-600' },
-                { label: 'Hitos', value: proyecto.hitos?.length ?? 0, color: 'text-purple-600' },
-                { label: 'Riesgos activos', value: proyecto.riesgos?.filter((r) => r.estado === 'activo').length ?? 0, color: 'text-red-600' },
-              ].map((m) => (
-                <div key={m.label} className="p-3 bg-muted/40 rounded-lg">
-                  <p className={`text-2xl font-bold ${m.color}`}>{m.value}</p>
-                  <p className="text-xs text-muted-foreground mt-0.5">{m.label}</p>
+              {metCfg && (
+                <dl className="grid grid-cols-2 gap-3 text-sm mb-3">
+                  <div><dt className="text-muted-foreground">Mejor para</dt><dd className="font-medium mt-0.5">{metCfg.mejorPara}</dd></div>
+                  <div><dt className="text-muted-foreground">Documentación</dt><dd className="font-medium mt-0.5">{metCfg.documentacion}</dd></div>
+                  <div><dt className="text-muted-foreground">Tamaño equipo</dt><dd className="font-medium mt-0.5">{metCfg.tamanoEquipo}</dd></div>
+                  <div><dt className="text-muted-foreground">Estabilidad reqs.</dt><dd className="font-medium mt-0.5">{metCfg.estabilidadReqs}</dd></div>
+                </dl>
+              )}
+              {proyecto.justificacionMetodologia && (
+                <div className="p-3 bg-muted/40 rounded-lg text-sm">
+                  <p className="text-muted-foreground text-xs mb-1">Justificación del equipo:</p>
+                  <p>{proyecto.justificacionMetodologia}</p>
                 </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Sidebar: Cliente + Métricas rápidas */}
+        <div className="space-y-4">
+          <Card>
+            <CardHeader><CardTitle className="text-base">Cliente vinculado (M1)</CardTitle></CardHeader>
+            <CardContent>
+              {entidad ? (
+                <div className="space-y-2 text-sm">
+                  <p className="font-semibold text-base">{entidad.razonSocial}</p>
+                  {entidad.nombreComercial && (
+                    <p className="text-muted-foreground">{entidad.nombreComercial}</p>
+                  )}
+                  <div className="flex flex-wrap gap-2 mt-2">
+                    <ColorBadge
+                      color={entidad.estado === 'activo' ? 'green' : 'gray'}
+                      label={entidad.estado}
+                    />
+                    <ColorBadge
+                      color={
+                        entidad.nivelRiesgo === 'bajo'
+                          ? 'green'
+                          : entidad.nivelRiesgo === 'medio'
+                          ? 'yellow'
+                          : entidad.nivelRiesgo === 'alto'
+                          ? 'orange'
+                          : 'red'
+                      }
+                      label={`Riesgo: ${entidad.nivelRiesgo}`}
+                    />
+                  </div>
+                  <div className="pt-2">
+                    <p className="text-muted-foreground">Sector: <span className="text-foreground capitalize">{entidad.sector}</span></p>
+                    <p className="text-muted-foreground">País: <span className="text-foreground">{entidad.pais}</span></p>
+                    <p className="text-muted-foreground">Stakeholders: <span className="text-foreground">{entidad.stakeholders?.length ?? 0}</span></p>
+                  </div>
+                  <Link
+                    href={ROUTES.ENTIDAD_DETALLE(entidad.id)}
+                    className="flex items-center gap-1 text-primary hover:underline text-sm mt-2"
+                  >
+                    <ExternalLink className="h-3 w-3" />
+                    Ver perfil completo en M1
+                  </Link>
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground">Entidad no encontrada</p>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Métricas rápidas */}
+          <Card>
+            <CardHeader><CardTitle className="text-base">Métricas del proyecto</CardTitle></CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-2 gap-3 text-center">
+                {[
+                  { label: 'Miembros', value: proyecto.equipo?.length ?? 0, color: 'text-blue-600' },
+                  { label: 'Riesgos', value: proyecto.riesgos?.length ?? 0, color: 'text-orange-600' },
+                  { label: 'Hitos', value: proyecto.hitos?.length ?? 0, color: 'text-purple-600' },
+                  {
+                    label: 'Riesgos activos',
+                    value: proyecto.riesgos?.filter((r) => r.estado === 'activo').length ?? 0,
+                    color: 'text-red-600',
+                  },
+                ].map((m) => (
+                  <div key={m.label} className="p-3 bg-muted/40 rounded-lg">
+                    <p className={`text-2xl font-bold ${m.color}`}>{m.value}</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">{m.label}</p>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
       </div>
     </div>
   )
@@ -280,7 +388,7 @@ function TabEquipo({ proyecto }: { proyecto: Proyecto }) {
   const ROL_COLOR: Record<string, string> = {
     PM: 'blue', gestor: 'blue', analista: 'purple', arquitecto: 'orange',
     desarrollador: 'green', qa: 'teal', scrum_master: 'yellow',
-    ux_designer: 'pink', devops: 'gray', product_owner: 'blue',
+    ux_designer: 'purple', devops: 'gray', product_owner: 'blue',
   }
 
   return (
@@ -313,7 +421,14 @@ function TabEquipo({ proyecto }: { proyecto: Proyecto }) {
                     </td>
                     <td className="py-3 pr-4 text-muted-foreground">{m.rolCliente || '—'}</td>
                     <td className="py-3">
-                      <Badge variant="outline" className={m.esExterno ? 'text-orange-700 border-orange-300' : 'text-green-700 border-green-300'}>
+                      <Badge
+                        variant="outline"
+                        className={
+                          m.esExterno
+                            ? 'text-orange-700 border-orange-300'
+                            : 'text-green-700 border-green-300'
+                        }
+                      >
                         {m.esExterno ? 'Externo' : 'Interno'}
                       </Badge>
                     </td>
@@ -332,18 +447,27 @@ function TabEquipo({ proyecto }: { proyecto: Proyecto }) {
 // TAB RIESGOS
 // -------------------------------------------------------
 
-function TabRiesgos({ proyecto }: { proyecto: Proyecto }) {
+function TabRiesgos({
+  proyecto,
+  onCambiarEstadoRiesgo,
+}: {
+  proyecto: Proyecto
+  onCambiarEstadoRiesgo: (riesgo: RiesgoProyecto) => void
+}) {
   const riesgos = proyecto.riesgos ?? []
   const activos = riesgos.filter((r) => r.estado === 'activo').length
   const materializados = riesgos.filter((r) => r.estado === 'materializado').length
 
   const TIPO_LABELS: Record<string, string> = {
-    tecnologico: 'Tecnológico', personas: 'Personas', organizacional: 'Organizacional',
-    requerimientos: 'Requerimientos', estimacion: 'Estimación',
+    tecnologico: 'Tecnológico',
+    personas: 'Personas',
+    organizacional: 'Organizacional',
+    requerimientos: 'Requerimientos',
+    estimacion: 'Estimación',
   }
   const ESTADO_ICONS: Record<string, React.ReactNode> = {
     activo: <AlertCircle className="h-4 w-4 text-orange-600" />,
-    mitigado: <CheckCircle className="h-4 w-4 text-blue-600" />,
+    mitigado: <Shield className="h-4 w-4 text-blue-600" />,
     materializado: <XCircle className="h-4 w-4 text-red-600" />,
     cerrado: <CheckCircle className="h-4 w-4 text-green-600" />,
   }
@@ -374,18 +498,39 @@ function TabRiesgos({ proyecto }: { proyecto: Proyecto }) {
             <div className="space-y-3">
               {riesgos.map((r) => {
                 const nivel = calcNivelRiesgo(r.probabilidad, r.impacto)
+                const puedeActualizar = r.estado !== 'cerrado'
                 return (
                   <div key={r.id} className="p-3 border rounded-lg">
                     <div className="flex items-start justify-between gap-2 mb-2">
                       <div className="flex items-center gap-2 flex-wrap">
                         {ESTADO_ICONS[r.estado]}
-                        <ColorBadge color={NIVEL_COLOR[nivel as keyof typeof NIVEL_COLOR] ?? 'gray'} label={`Nivel: ${nivel}`} />
-                        <Badge variant="outline" className="text-xs">{TIPO_LABELS[r.tipo] ?? r.tipo}</Badge>
+                        <ColorBadge
+                          color={NIVEL_COLOR[nivel as keyof typeof NIVEL_COLOR] ?? 'gray'}
+                          label={`Nivel: ${nivel}`}
+                        />
+                        <Badge variant="outline" className="text-xs">
+                          {TIPO_LABELS[r.tipo] ?? r.tipo}
+                        </Badge>
                         {r.origen === 'heredado_entidad' && (
-                          <Badge variant="outline" className="text-xs text-orange-700 border-orange-300">Heredado</Badge>
+                          <Badge variant="outline" className="text-xs text-orange-700 border-orange-300">
+                            Heredado
+                          </Badge>
                         )}
                       </div>
-                      <Badge variant="outline" className="text-xs shrink-0 capitalize">{r.estado}</Badge>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <Badge variant="outline" className="text-xs capitalize">{r.estado}</Badge>
+                        {puedeActualizar && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => onCambiarEstadoRiesgo(r)}
+                            className="h-7 text-xs px-2"
+                          >
+                            <RefreshCw className="h-3 w-3 mr-1" />
+                            Revisar
+                          </Button>
+                        )}
+                      </div>
                     </div>
                     <p className="text-sm">{r.descripcion}</p>
                     <div className="flex gap-4 mt-2 text-xs text-muted-foreground">
@@ -432,7 +577,9 @@ function TabHitos({ proyecto }: { proyecto: Proyecto }) {
         <div className="p-4 border rounded-lg">
           <div className="flex items-center justify-between mb-2 text-sm">
             <span className="font-medium">Avance de hitos</span>
-            <span className="text-muted-foreground">{completados}/{hitos.length} completados ({progreso}%)</span>
+            <span className="text-muted-foreground">
+              {completados}/{hitos.length} completados ({progreso}%)
+            </span>
           </div>
           <div className="h-2 bg-muted rounded-full overflow-hidden">
             <div
@@ -467,7 +614,8 @@ function TabHitos({ proyecto }: { proyecto: Proyecto }) {
                       </div>
                       <div className="flex flex-wrap gap-3 mt-2 text-xs text-muted-foreground">
                         <span>
-                          Fecha: <strong className="text-foreground">
+                          Fecha:{' '}
+                          <strong className="text-foreground">
                             {hito.fechaEstimada
                               ? format(new Date(hito.fechaEstimada), 'dd/MM/yyyy', { locale: es })
                               : '—'}
@@ -475,13 +623,16 @@ function TabHitos({ proyecto }: { proyecto: Proyecto }) {
                         </span>
                         {hito.fechaReal && (
                           <span>
-                            Real: <strong className="text-foreground">
+                            Real:{' '}
+                            <strong className="text-foreground">
                               {format(new Date(hito.fechaReal), 'dd/MM/yyyy', { locale: es })}
                             </strong>
                           </span>
                         )}
                         <span>Responsable: <strong className="text-foreground">{hito.responsable}</strong></span>
-                        {hito.entregable && <span>Entregable: <strong className="text-foreground">{hito.entregable}</strong></span>}
+                        {hito.entregable && (
+                          <span>Entregable: <strong className="text-foreground">{hito.entregable}</strong></span>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -503,12 +654,20 @@ function TabPresupuesto({ proyecto }: { proyecto: Proyecto }) {
   const p = proyecto.presupuesto
 
   const formatCurrency = (val: number, moneda: string) => {
-    return new Intl.NumberFormat('es-CL', { style: 'decimal', minimumFractionDigits: 0 }).format(val) + ' ' + moneda
+    return (
+      new Intl.NumberFormat('es-CL', { style: 'decimal', minimumFractionDigits: 0 }).format(val) +
+      ' ' +
+      moneda
+    )
   }
 
   return (
     <Card>
-      <CardHeader><CardTitle className="text-base flex items-center gap-2"><DollarSign className="h-4 w-4" /> Estimación de presupuesto</CardTitle></CardHeader>
+      <CardHeader>
+        <CardTitle className="text-base flex items-center gap-2">
+          <DollarSign className="h-4 w-4" /> Estimación de presupuesto
+        </CardTitle>
+      </CardHeader>
       <CardContent>
         {!p ? (
           <p className="text-sm text-muted-foreground text-center py-8">
@@ -518,7 +677,9 @@ function TabPresupuesto({ proyecto }: { proyecto: Proyecto }) {
           <div className="space-y-6">
             <div className="flex items-center gap-2">
               <span className="text-sm font-medium">Método:</span>
-              <Badge variant="outline">{METODOS_ESTIMACION_CONFIG[p.metodoUsado]?.label ?? p.metodoUsado}</Badge>
+              <Badge variant="outline">
+                {METODOS_ESTIMACION_CONFIG[p.metodoUsado]?.label ?? p.metodoUsado}
+              </Badge>
             </div>
 
             {/* Rango de estimación */}
@@ -591,15 +752,23 @@ function TabHistorial({ proyectoId }: { proyectoId: string }) {
     actualizacion_datos: 'Actualización de datos',
     cambio_estado: 'Cambio de estado',
     gestion_equipo: 'Gestión del equipo',
-    gestion_riesgos: 'Gestión de riesgos',
+    gestion_riesgos: 'Revisión de riesgo',
     gestion_hitos: 'Gestión de hitos',
+    cierre: 'Cierre del proyecto',
+    cancelacion: 'Cancelación del proyecto',
   }
 
-  if (isLoading) return <p className="text-sm text-muted-foreground py-8 text-center">Cargando historial...</p>
+  if (isLoading) {
+    return <p className="text-sm text-muted-foreground py-8 text-center">Cargando historial...</p>
+  }
 
   return (
     <Card>
-      <CardHeader><CardTitle className="text-base flex items-center gap-2"><Clock className="h-4 w-4" /> Historial de cambios</CardTitle></CardHeader>
+      <CardHeader>
+        <CardTitle className="text-base flex items-center gap-2">
+          <Clock className="h-4 w-4" /> Historial de cambios
+        </CardTitle>
+      </CardHeader>
       <CardContent>
         {!historial || historial.length === 0 ? (
           <p className="text-sm text-muted-foreground text-center py-8">No hay registros en el historial</p>
@@ -610,7 +779,9 @@ function TabHistorial({ proyectoId }: { proyectoId: string }) {
                 <div className="w-2 h-2 rounded-full bg-primary mt-1.5 shrink-0" />
                 <div className="flex-1 text-sm">
                   <div className="flex items-center justify-between flex-wrap gap-1">
-                    <span className="font-medium">{TIPO_ACCION_LABEL[entry.tipoAccion] ?? entry.tipoAccion}</span>
+                    <span className="font-medium">
+                      {TIPO_ACCION_LABEL[entry.tipoAccion] ?? entry.tipoAccion}
+                    </span>
                     <span className="text-xs text-muted-foreground">
                       {format(new Date(entry.fechaHora), 'dd/MM/yyyy HH:mm', { locale: es })}
                     </span>
@@ -623,7 +794,15 @@ function TabHistorial({ proyectoId }: { proyectoId: string }) {
                       {entry.valorNuevo && ` · Ahora: ${entry.valorNuevo}`}
                     </p>
                   )}
-                  {entry.motivo && <p className="text-xs text-muted-foreground mt-0.5">Motivo: {entry.motivo}</p>}
+                  {entry.motivo && entry.tipoAccion !== 'cierre' && (
+                    <p className="text-xs text-muted-foreground mt-0.5">Motivo: {entry.motivo}</p>
+                  )}
+                  {entry.tipoAccion === 'cierre' && entry.motivo && (
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      Lecciones aprendidas registradas ·{' '}
+                      <span className="text-primary">Ver en documentación de cierre</span>
+                    </p>
+                  )}
                 </div>
               </div>
             ))}

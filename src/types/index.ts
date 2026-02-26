@@ -288,7 +288,7 @@ export interface EntradaHistorialProyecto {
   fechaHora: Date
   usuarioId: string
   usuarioNombre: string
-  tipoAccion: 'creacion' | 'actualizacion_datos' | 'cambio_estado' | 'gestion_equipo' | 'gestion_riesgos' | 'gestion_hitos'
+  tipoAccion: 'creacion' | 'actualizacion_datos' | 'cambio_estado' | 'gestion_equipo' | 'gestion_riesgos' | 'gestion_hitos' | 'cierre' | 'cancelacion'
   campoModificado?: string
   valorAnterior?: string
   valorNuevo?: string
@@ -353,3 +353,27 @@ export type CrearEntradaGlosarioDTO = Omit<
   EntradaGlosario,
   'id' | 'entidadId' | 'creadoEn' | 'actualizadoEn' | 'creadoPor'
 >
+
+// ---------- TIPOS SPRINT 4 — M2-04 Seguimiento, Control y Cierre ----------
+
+/** Causa tipificada de cancelación de proyecto (M2-04 §9.2) */
+export type CausaCancelacion =
+  | 'decision_cliente'
+  | 'inviabilidad_tecnica'
+  | 'fuerza_mayor'
+  | 'incumplimiento_contractual'
+  | 'cambio_prioridades'
+
+/** Lecciones aprendidas al cierre de proyecto (M2-04 §9.3) */
+export interface LeccionesAprendidas {
+  queExitoSaliBien: string
+  queProblemasSurgieron: string
+  queHariamosDistinto: string
+  riesgosNoAnticipados: string
+}
+
+/** Estadísticas rápidas de proyectos para el dashboard */
+export interface ProyectosStats {
+  total: number
+  activos: number
+}

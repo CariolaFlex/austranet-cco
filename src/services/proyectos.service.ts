@@ -27,6 +27,10 @@ import type {
   CrearProyectoDTO,
   ActualizarProyectoDTO,
   EntradaHistorialProyecto,
+  NivelRiesgoEntidad,
+  LeccionesAprendidas,
+  CausaCancelacion,
+  ProyectosStats,
 } from '@/types'
 
 const COLECCION = 'proyectos'
@@ -278,6 +282,147 @@ export const proyectosService = {
     return snap.docs.map((d) =>
       convertTimestamps({ id: d.id, ...d.data() }) as EntradaHistorialProyecto
     )
+  },
+
+  /**
+   * Cambia el estado de un riesgo dentro del proyecto (M2-03 §6).
+   * Actualiza el array de riesgos en el documento y registra en historial.
+   */
+  updateRiesgoEstado: async (
+    proyectoId: string,
+    riesgoId: string,
+    nuevoEstado: 'activo' | 'mitigado' | 'materializado' | 'cerrado',
+    justificacion: string
+  ): Promise<void> => {
+    const db = getFirestoreDb()
+    const uid = getCurrentUserId()
+    const userName = getCurrentUserName()
+
+    const proyecto = await proyectosService.getById(proyectoId)
+    if (!proyecto) throw new Error('Proyecto no encontrado')
+
+    const riesgoActual = proyecto.riesgos.find((r) => r.id === riesgoId)
+    if (!riesgoActual) throw new Error('Riesgo no encontrado en el proyecto')
+
+    const riesgosActualizados = proyecto.riesgos.map((r) =>
+      r.id === riesgoId ? { ...r, estado: nuevoEstado } : r
+    )
+
+    await updateDoc(doc(db, COLECCION, proyectoId), {
+      riesgos: riesgosActualizados,
+      actualizadoEn: Timestamp.now(),
+    })
+
+    await registrarHistorial(proyectoId, {
+      usuarioId: uid,
+      usuarioNombre: userName,
+      tipoAccion: 'gestion_riesgos',
+      campoModificado: `riesgo[${riesgoId}].estado`,
+      valorAnterior: riesgoActual.estado,
+      valorNuevo: nuevoEstado,
+      motivo: justificacion,
+    })
+  },
+
+  /**
+   * Cierra el proyecto como completado (M2-04 §9.1 + §9.3).
+   * Registra lecciones aprendidas en historial.
+   * Retroalimenta nivelRiesgo de la entidad: baja 1 nivel (M2-04 §5.2 T6).
+   */
+  cerrar: async (
+    proyectoId: string,
+    entidadId: string,
+    lecciones: LeccionesAprendidas
+  ): Promise<void> => {
+    const db = getFirestoreDb()
+    const uid = getCurrentUserId()
+    const userName = getCurrentUserName()
+
+    await updateDoc(doc(db, COLECCION, proyectoId), {
+      estado: 'completado' as EstadoProyecto,
+      actualizadoEn: Timestamp.now(),
+    })
+
+    await registrarHistorial(proyectoId, {
+      usuarioId: uid,
+      usuarioNombre: userName,
+      tipoAccion: 'cierre',
+      campoModificado: 'estado',
+      valorAnterior: 'activo',
+      valorNuevo: 'completado',
+      motivo: JSON.stringify(lecciones),
+    })
+
+    // Retroalimentar M1: cierre limpio → bajar nivelRiesgo 1 nivel
+    const NIVELES: NivelRiesgoEntidad[] = ['bajo', 'medio', 'alto', 'critico']
+    try {
+      const entidad = await entidadesService.getById(entidadId)
+      if (entidad) {
+        const idx = NIVELES.indexOf(entidad.nivelRiesgo)
+        if (idx > 0) {
+          await entidadesService.update(entidadId, { nivelRiesgo: NIVELES[idx - 1] })
+        }
+      }
+    } catch {
+      // No bloquear el cierre si falla la actualización de la entidad
+    }
+  },
+
+  /**
+   * Cancela el proyecto (M2-04 §9.2).
+   * Causa tipificada obligatoria. Retroalimenta nivelRiesgo: sube 1 nivel (M2-04 §5.2 T7).
+   */
+  cancelar: async (
+    proyectoId: string,
+    entidadId: string,
+    causa: CausaCancelacion,
+    detalle: string
+  ): Promise<void> => {
+    const db = getFirestoreDb()
+    const uid = getCurrentUserId()
+    const userName = getCurrentUserName()
+
+    await updateDoc(doc(db, COLECCION, proyectoId), {
+      estado: 'cancelado' as EstadoProyecto,
+      actualizadoEn: Timestamp.now(),
+    })
+
+    await registrarHistorial(proyectoId, {
+      usuarioId: uid,
+      usuarioNombre: userName,
+      tipoAccion: 'cancelacion',
+      campoModificado: 'estado',
+      valorAnterior: 'activo',
+      valorNuevo: 'cancelado',
+      motivo: `${causa}: ${detalle}`,
+    })
+
+    // Retroalimentar M1: cancelación → subir nivelRiesgo 1 nivel
+    const NIVELES: NivelRiesgoEntidad[] = ['bajo', 'medio', 'alto', 'critico']
+    try {
+      const entidad = await entidadesService.getById(entidadId)
+      if (entidad) {
+        const idx = NIVELES.indexOf(entidad.nivelRiesgo)
+        if (idx < NIVELES.length - 1) {
+          await entidadesService.update(entidadId, { nivelRiesgo: NIVELES[idx + 1] })
+        }
+      }
+    } catch {
+      // No bloquear la cancelación si falla la actualización de la entidad
+    }
+  },
+
+  /**
+   * Retorna estadísticas rápidas de proyectos para el dashboard.
+   */
+  getStats: async (): Promise<ProyectosStats> => {
+    const db = getFirestoreDb()
+    const snap = await getDocs(collection(db, COLECCION))
+    const total = snap.size
+    const activos = snap.docs.filter((d) =>
+      ['activo_en_definicion', 'activo_en_desarrollo'].includes(d.data().estado as string)
+    ).length
+    return { total, activos }
   },
 
   // Re-exportar para uso externo

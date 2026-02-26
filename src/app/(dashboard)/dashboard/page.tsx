@@ -1,23 +1,25 @@
-'use client';
+'use client'
 
-import Link from 'next/link';
+import Link from 'next/link'
 import {
   Building2,
   FolderKanban,
   FileText,
-  Info,
   ArrowRight,
-} from 'lucide-react';
-import { useAuth } from '@/contexts/AuthContext';
-import { Card, CardContent } from '@/components/ui/card';
-import { cn } from '@/lib/utils';
+  TrendingUp,
+} from 'lucide-react'
+import { useAuth } from '@/contexts/AuthContext'
+import { Card, CardContent } from '@/components/ui/card'
+import { cn } from '@/lib/utils'
+import { useEntidades } from '@/hooks/useEntidades'
+import { useProyectos, useProyectosStats } from '@/hooks/useProyectos'
 
 // ── Helpers de fecha ──────────────────────────────────────
 function getGreeting(): string {
-  const hour = new Date().getHours();
-  if (hour < 12) return 'Buenos días';
-  if (hour < 19) return 'Buenas tardes';
-  return 'Buenas noches';
+  const hour = new Date().getHours()
+  if (hour < 12) return 'Buenos días'
+  if (hour < 19) return 'Buenas tardes'
+  return 'Buenas noches'
 }
 
 function getFormattedDate(): string {
@@ -26,40 +28,12 @@ function getFormattedDate(): string {
     day: 'numeric',
     month: 'long',
     year: 'numeric',
-  });
+  })
 }
 
 function capitalize(s: string) {
-  return s.charAt(0).toUpperCase() + s.slice(1);
+  return s.charAt(0).toUpperCase() + s.slice(1)
 }
-
-// ── KPI Cards data ────────────────────────────────────────
-const KPI_CARDS = [
-  {
-    title: 'Entidades registradas',
-    value: 0,
-    description: 'Clientes y proveedores',
-    icon: Building2,
-    color: 'text-blue-500',
-    bg: 'bg-blue-500/10',
-  },
-  {
-    title: 'Proyectos activos',
-    value: 0,
-    description: 'En definición o desarrollo',
-    icon: FolderKanban,
-    color: 'text-violet-500',
-    bg: 'bg-violet-500/10',
-  },
-  {
-    title: 'SRS en proceso',
-    value: 0,
-    description: 'Documentos de alcance activos',
-    icon: FileText,
-    color: 'text-emerald-500',
-    bg: 'bg-emerald-500/10',
-  },
-] as const;
 
 // ── Quick access cards ─────────────────────────────────────
 const QUICK_ACCESS = [
@@ -81,12 +55,47 @@ const QUICK_ACCESS = [
     href: '/alcance',
     icon: FileText,
   },
-] as const;
+] as const
 
 // ── Page ──────────────────────────────────────────────────
 export default function DashboardPage() {
-  const { user } = useAuth();
-  const firstName = user?.nombre?.split(' ')[0] ?? 'Usuario';
+  const { user } = useAuth()
+  const firstName = user?.nombre?.split(' ')[0] ?? 'Usuario'
+
+  // Datos reales desde Firestore
+  const { data: entidades, isLoading: loadingEntidades } = useEntidades()
+  const { data: stats, isLoading: loadingStats } = useProyectosStats()
+  const { data: proyectosRecientes } = useProyectos({ estado: 'activo_en_desarrollo' })
+
+  const entidadesCount = entidades?.length ?? 0
+  const activosCount = stats?.activos ?? 0
+
+  const KPI_CARDS = [
+    {
+      title: 'Entidades registradas',
+      value: loadingEntidades ? '—' : entidadesCount,
+      description: 'Clientes y proveedores',
+      icon: Building2,
+      color: 'text-blue-500',
+      bg: 'bg-blue-500/10',
+    },
+    {
+      title: 'Proyectos activos',
+      value: loadingStats ? '—' : activosCount,
+      description: 'En definición o desarrollo',
+      icon: FolderKanban,
+      color: 'text-violet-500',
+      bg: 'bg-violet-500/10',
+    },
+    {
+      title: 'Total proyectos',
+      value: loadingStats ? '—' : (stats?.total ?? 0),
+      description: 'En todos los estados',
+      icon: TrendingUp,
+      color: 'text-emerald-500',
+      bg: 'bg-emerald-500/10',
+    },
+  ]
 
   return (
     <div className="space-y-8">
@@ -112,15 +121,11 @@ export default function DashboardPage() {
               <CardContent className="p-5">
                 <div className="flex items-start justify-between">
                   <div>
-                    <p className="text-sm font-medium text-muted-foreground">
-                      {title}
-                    </p>
+                    <p className="text-sm font-medium text-muted-foreground">{title}</p>
                     <p className="mt-2 text-3xl font-bold tabular-nums text-foreground">
                       {value}
                     </p>
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      {description}
-                    </p>
+                    <p className="mt-1 text-xs text-muted-foreground">{description}</p>
                   </div>
                   <div className={cn('rounded-lg p-2.5', bg)}>
                     <Icon className={cn('h-5 w-5', color)} />
@@ -131,6 +136,33 @@ export default function DashboardPage() {
           ))}
         </div>
       </section>
+
+      {/* ── Proyectos recientes activos ──────────────── */}
+      {proyectosRecientes && proyectosRecientes.length > 0 && (
+        <section>
+          <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            Proyectos en desarrollo
+          </h2>
+          <div className="space-y-2">
+            {proyectosRecientes.slice(0, 5).map((p) => (
+              <Link key={p.id} href={`/proyectos/${p.id}`}>
+                <Card className="group cursor-pointer transition-all duration-150 hover:border-primary/50 hover:shadow-sm">
+                  <CardContent className="flex items-center gap-4 p-4">
+                    <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-md bg-violet-500/10">
+                      <FolderKanban className="h-4 w-4 text-violet-500" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium text-sm text-foreground truncate">{p.nombre}</p>
+                      <p className="text-xs text-muted-foreground font-mono">{p.codigo}</p>
+                    </div>
+                    <ArrowRight className="h-4 w-4 flex-shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100" />
+                  </CardContent>
+                </Card>
+              </Link>
+            ))}
+          </div>
+        </section>
+      )}
 
       {/* ── Accesos rápidos ─────────────────────────── */}
       <section>
@@ -147,9 +179,7 @@ export default function DashboardPage() {
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="font-medium text-foreground">{label}</p>
-                    <p className="mt-0.5 truncate text-xs text-muted-foreground">
-                      {description}
-                    </p>
+                    <p className="mt-0.5 truncate text-xs text-muted-foreground">{description}</p>
                   </div>
                   <ArrowRight className="h-4 w-4 flex-shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100" />
                 </CardContent>
@@ -158,21 +188,6 @@ export default function DashboardPage() {
           ))}
         </div>
       </section>
-
-      {/* ── Banner estado del sistema ────────────────── */}
-      <section>
-        <div className="flex items-start gap-3 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3.5 dark:border-blue-900 dark:bg-blue-950/40">
-          <Info className="mt-0.5 h-4 w-4 flex-shrink-0 text-blue-500" />
-          <div>
-            <p className="text-sm font-medium text-blue-700 dark:text-blue-400">
-              Sistema en configuración inicial
-            </p>
-            <p className="mt-0.5 text-xs text-blue-600/80 dark:text-blue-500/80">
-              Conecta Firebase para comenzar a registrar datos reales en el sistema.
-            </p>
-          </div>
-        </div>
-      </section>
     </div>
-  );
+  )
 }
