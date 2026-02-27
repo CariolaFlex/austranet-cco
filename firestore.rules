@@ -10,7 +10,7 @@ rules_version = '2';
 //           No hay acceso anónimo ni público.
 //
 // COLECCIONES PROTEGIDAS:
-//   entidades, proyectos, srs, requerimientos,
+//   usuarios, entidades, proyectos, srs, requerimientos,
 //   sesiones_entrevista, escenarios, casos_prueba,
 //   terminos_dominio_srs, repositorios_configuracion
 //
@@ -25,6 +25,14 @@ service cloud.firestore {
     // --------------------------------------------------------
     function isAuthenticated() {
       return request.auth != null;
+    }
+
+    // --------------------------------------------------------
+    // MÓDULO 0 — Usuarios (Agregado para permitir acceso a la app)
+    // --------------------------------------------------------
+    match /usuarios/{userId} {
+      // Permite leer y escribir si el usuario está autenticado y es su propio documento
+      allow read, write: if isAuthenticated() && request.auth.uid == userId;
     }
 
     // --------------------------------------------------------
