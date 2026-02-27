@@ -64,7 +64,7 @@ export type PrioridadRequerimiento = 'must' | 'should' | 'could' | 'wont'
 
 export type TipoRequerimiento = 'funcional' | 'no_funcional' | 'dominio'
 
-export type RolUsuario = 'admin' | 'gestor' | 'analista' | 'viewer'
+export type RolUsuario = 'admin' | 'gestor' | 'analista' | 'viewer' | 'tester'
 
 // ---------- ENTIDADES (MÓDULO 1) ----------
 
@@ -852,6 +852,8 @@ export interface Usuario {
   id: string
   nombre: string
   email: string
+  empresa?: string
+  cargo?: string
   rol: RolUsuario
   activo: boolean
   creadoEn: Date

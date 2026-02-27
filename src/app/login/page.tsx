@@ -5,6 +5,7 @@ export const dynamic = 'force-dynamic';
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import {
   signInWithEmailAndPassword,
   signInWithPopup,
@@ -348,6 +349,17 @@ export default function LoginPage() {
                     <Chrome className="mr-2 h-4 w-4" />
                     Google
                   </Button>
+
+                  {/* Link a registro */}
+                  <p className="text-center text-sm text-muted-foreground">
+                    ¿No tienes cuenta?{' '}
+                    <Link
+                      href="/registro"
+                      className="font-medium text-primary hover:underline"
+                    >
+                      Regístrate
+                    </Link>
+                  </p>
                 </>
               )}
             </CardContent>
