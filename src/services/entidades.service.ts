@@ -16,7 +16,7 @@ import {
   Timestamp,
 } from 'firebase/firestore';
 import { v4 as uuidv4 } from 'uuid';
-import { getFirestoreDb, convertTimestamps } from '@/lib/firebase/firestore';
+import { getFirestoreDb, convertTimestamps, removeUndefined } from '@/lib/firebase/firestore';
 import { getFirebaseAuth } from '@/lib/firebase/auth';
 import type {
   Entidad,
@@ -150,11 +150,11 @@ async function registrarHistorial(
 ): Promise<void> {
   const db = getFirestoreDb();
   const historialRef = collection(db, COLECCION, entidadId, 'historial');
-  await addDoc(historialRef, {
+  await addDoc(historialRef, removeUndefined({
     ...entrada,
     entidadId,
     fechaHora: Timestamp.now(),
-  });
+  }));
 }
 
 function docToEntidad(id: string, data: Record<string, unknown>): Entidad {
@@ -225,7 +225,7 @@ export const entidadesService = {
       creadoPor: uid,
     };
 
-    const docRef = await addDoc(collection(db, COLECCION), docData);
+    const docRef = await addDoc(collection(db, COLECCION), removeUndefined(docData));
 
     await registrarHistorial(docRef.id, {
       usuarioId: uid,
@@ -260,7 +260,7 @@ export const entidadesService = {
       }));
     }
 
-    await updateDoc(doc(db, COLECCION, id), updateData);
+    await updateDoc(doc(db, COLECCION, id), removeUndefined(updateData));
 
     await registrarHistorial(id, {
       usuarioId: uid,
@@ -364,13 +364,13 @@ export const entidadesService = {
       const ahora = Timestamp.now();
       const docRef = await addDoc(
         collection(db, COLECCION, entidadId, 'glosario'),
-        {
+        removeUndefined({
           ...data,
           entidadId,
           creadoEn: ahora,
           actualizadoEn: ahora,
           creadoPor: uid,
-        }
+        })
       );
       return convertTimestamps({
         id: docRef.id,
@@ -392,7 +392,7 @@ export const entidadesService = {
       const ahora = Timestamp.now();
       await updateDoc(
         doc(db, COLECCION, entidadId, 'glosario', terminoId),
-        { ...data, actualizadoEn: ahora }
+        removeUndefined({ ...data, actualizadoEn: ahora })
       );
       const updated = await entidadesService.glosario.getById(entidadId, terminoId);
       if (!updated) throw new Error('Término no encontrado después de actualizar');

@@ -22,7 +22,7 @@ import {
   orderBy,
   Timestamp,
 } from 'firebase/firestore'
-import { getFirestoreDb, convertTimestamps } from '@/lib/firebase/firestore'
+import { getFirestoreDb, convertTimestamps, removeUndefined } from '@/lib/firebase/firestore'
 import { getFirebaseAuth } from '@/lib/firebase/auth'
 import { COLECCIONES_M3 } from '@/constants/alcance'
 import type {
@@ -236,7 +236,7 @@ export const alcanceService = {
       creadoPor: uid,
     }
 
-    const ref = await addDoc(collection(db, COLECCIONES_M3.SRS), docData)
+    const ref = await addDoc(collection(db, COLECCIONES_M3.SRS), removeUndefined(docData))
     return docToSRS(ref.id, {
       ...docData,
       creadoEn: ahora.toDate(),
@@ -247,10 +247,10 @@ export const alcanceService = {
   /** Actualiza campos parciales del SRS */
   updateSRS: async (id: string, data: Partial<Omit<SRS, 'id' | 'creadoEn' | 'creadoPor'>>): Promise<SRS> => {
     const db = getFirestoreDb()
-    await updateDoc(doc(db, COLECCIONES_M3.SRS, id), {
+    await updateDoc(doc(db, COLECCIONES_M3.SRS, id), removeUndefined({
       ...data,
       actualizadoEn: Timestamp.now(),
-    })
+    }))
     const updated = await alcanceService.getById(id)
     if (!updated) throw new Error('SRS no encontrado después de actualizar')
     return updated
@@ -416,7 +416,7 @@ export const alcanceService = {
       creadoPor: uid,
     }
 
-    const ref = await addDoc(collection(db, COLECCIONES_M3.REQUERIMIENTOS), docData)
+    const ref = await addDoc(collection(db, COLECCIONES_M3.REQUERIMIENTOS), removeUndefined(docData))
     return docToRequerimiento(ref.id, {
       ...docData,
       creadoEn: ahora.toDate(),
@@ -429,10 +429,10 @@ export const alcanceService = {
     data: Partial<Omit<Requerimiento, 'id' | 'creadoEn' | 'creadoPor' | 'codigo' | 'srsId' | 'proyectoId'>>
   ): Promise<Requerimiento> => {
     const db = getFirestoreDb()
-    await updateDoc(doc(db, COLECCIONES_M3.REQUERIMIENTOS, id), {
+    await updateDoc(doc(db, COLECCIONES_M3.REQUERIMIENTOS, id), removeUndefined({
       ...data,
       actualizadoEn: Timestamp.now(),
-    })
+    }))
     const snap = await getDoc(doc(db, COLECCIONES_M3.REQUERIMIENTOS, id))
     if (!snap.exists()) throw new Error('Requerimiento no encontrado después de actualizar')
     return docToRequerimiento(snap.id, snap.data())
@@ -489,7 +489,7 @@ export const alcanceService = {
       creadoPor: uid,
     }
 
-    const ref = await addDoc(collection(db, COLECCIONES_M3.SESIONES_ENTREVISTA), docData)
+    const ref = await addDoc(collection(db, COLECCIONES_M3.SESIONES_ENTREVISTA), removeUndefined(docData))
     return convertTimestamps({ id: ref.id, ...docData, creadoEn: ahora.toDate() }) as SesionEntrevista
   },
 
@@ -498,9 +498,7 @@ export const alcanceService = {
     data: Partial<Omit<SesionEntrevista, 'id' | 'creadoEn' | 'creadoPor'>>
   ): Promise<void> => {
     const db = getFirestoreDb()
-    await updateDoc(doc(db, COLECCIONES_M3.SESIONES_ENTREVISTA, id), {
-      ...data,
-    })
+    await updateDoc(doc(db, COLECCIONES_M3.SESIONES_ENTREVISTA, id), removeUndefined({ ...data }))
   },
 
   // ====================================================
@@ -537,7 +535,7 @@ export const alcanceService = {
       creadoPor: uid,
     }
 
-    const ref = await addDoc(collection(db, COLECCIONES_M3.ESCENARIOS), docData)
+    const ref = await addDoc(collection(db, COLECCIONES_M3.ESCENARIOS), removeUndefined(docData))
     return convertTimestamps({ id: ref.id, ...docData, creadoEn: ahora.toDate() }) as Escenario
   },
 
@@ -546,7 +544,7 @@ export const alcanceService = {
     data: Partial<Omit<Escenario, 'id' | 'creadoEn' | 'creadoPor'>>
   ): Promise<void> => {
     const db = getFirestoreDb()
-    await updateDoc(doc(db, COLECCIONES_M3.ESCENARIOS, id), { ...data })
+    await updateDoc(doc(db, COLECCIONES_M3.ESCENARIOS, id), removeUndefined({ ...data }))
   },
 
   // ====================================================
@@ -581,7 +579,7 @@ export const alcanceService = {
       creadoPor: uid,
     }
 
-    const ref = await addDoc(collection(db, COLECCIONES_M3.CASOS_PRUEBA), docData)
+    const ref = await addDoc(collection(db, COLECCIONES_M3.CASOS_PRUEBA), removeUndefined(docData))
     return convertTimestamps({ id: ref.id, ...docData, creadoEn: ahora.toDate() }) as CasoPrueba
   },
 
@@ -590,7 +588,7 @@ export const alcanceService = {
     data: Partial<Omit<CasoPrueba, 'id' | 'creadoEn' | 'creadoPor'>>
   ): Promise<void> => {
     const db = getFirestoreDb()
-    await updateDoc(doc(db, COLECCIONES_M3.CASOS_PRUEBA, id), { ...data })
+    await updateDoc(doc(db, COLECCIONES_M3.CASOS_PRUEBA, id), removeUndefined({ ...data }))
   },
 
   // ====================================================
@@ -622,7 +620,7 @@ export const alcanceService = {
       creadoPor: uid,
     }
 
-    const ref = await addDoc(collection(db, COLECCIONES_M3.TERMINOS_DOMINIO_SRS), docData)
+    const ref = await addDoc(collection(db, COLECCIONES_M3.TERMINOS_DOMINIO_SRS), removeUndefined(docData))
     return convertTimestamps({ id: ref.id, ...docData, creadoEn: ahora.toDate() }) as TerminoDominioSRS
   },
 
@@ -631,7 +629,7 @@ export const alcanceService = {
     data: Partial<Omit<TerminoDominioSRS, 'id' | 'creadoEn' | 'creadoPor'>>
   ): Promise<void> => {
     const db = getFirestoreDb()
-    await updateDoc(doc(db, COLECCIONES_M3.TERMINOS_DOMINIO_SRS, id), { ...data })
+    await updateDoc(doc(db, COLECCIONES_M3.TERMINOS_DOMINIO_SRS, id), removeUndefined({ ...data }))
   },
 
   // ====================================================
@@ -784,10 +782,10 @@ export const alcanceService = {
       fechaCreacion: ahora.toDate(),
     }
 
-    await updateDoc(doc(db, COLECCIONES_M3.SRS, srsId), {
+    await updateDoc(doc(db, COLECCIONES_M3.SRS, srsId), removeUndefined({
       observacionesValidacion: [...(srs.observacionesValidacion ?? []), nueva],
       actualizadoEn: ahora,
-    })
+    }))
 
     return nueva
   },
@@ -818,7 +816,7 @@ export const alcanceService = {
       updates.estado = 'en_validacion' satisfies EstadoSRS
     }
 
-    await updateDoc(doc(db, COLECCIONES_M3.SRS, srsId), updates)
+    await updateDoc(doc(db, COLECCIONES_M3.SRS, srsId), removeUndefined(updates))
   },
 
   // ====================================================
@@ -857,10 +855,10 @@ export const alcanceService = {
     }
 
     const db = getFirestoreDb()
-    await updateDoc(doc(db, COLECCIONES_M3.SRS, srsId), {
+    await updateDoc(doc(db, COLECCIONES_M3.SRS, srsId), removeUndefined({
       solicitudesCambioSRS: [...(srs.solicitudesCambioSRS ?? []), nueva],
       actualizadoEn: ahora,
-    })
+    }))
 
     return nueva
   },
@@ -918,7 +916,7 @@ export const alcanceService = {
       updates.version = scrActualizado.nuevaVersion
     }
 
-    await updateDoc(doc(db, COLECCIONES_M3.SRS, srsId), updates)
+    await updateDoc(doc(db, COLECCIONES_M3.SRS, srsId), removeUndefined(updates))
   },
 
   // ====================================================

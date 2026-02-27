@@ -18,7 +18,7 @@ import {
   Timestamp,
 } from 'firebase/firestore'
 import { v4 as uuidv4 } from 'uuid'
-import { getFirestoreDb, convertTimestamps } from '@/lib/firebase/firestore'
+import { getFirestoreDb, convertTimestamps, removeUndefined } from '@/lib/firebase/firestore'
 import { getFirebaseAuth } from '@/lib/firebase/auth'
 import { calcularEfectosCascada } from '@/lib/metodologia/efectosCascada'
 import type {
@@ -204,10 +204,10 @@ export const repositorioConfiguracionService = {
       creadoPor: uid,
     }
 
-    await updateDoc(doc(db, COLECCION, configuracionId), {
+    await updateDoc(doc(db, COLECCION, configuracionId), removeUndefined({
       solicitudesCambio: [...cfg.solicitudesCambio, nuevaSCR],
       actualizadoEn: ahora,
-    })
+    }))
 
     return nuevaSCR
   },
@@ -259,10 +259,10 @@ export const repositorioConfiguracionService = {
       return actualizado
     })
 
-    await updateDoc(doc(db, COLECCION, configuracionId), {
+    await updateDoc(doc(db, COLECCION, configuracionId), removeUndefined({
       solicitudesCambio: scrs,
       actualizadoEn: ahora,
-    })
+    }))
   },
 
   /**
@@ -293,11 +293,11 @@ export const repositorioConfiguracionService = {
       scrId,
     }
 
-    await updateDoc(doc(db, COLECCION, configuracionId), {
+    await updateDoc(doc(db, COLECCION, configuracionId), removeUndefined({
       version: nuevaVersion,
       historialVersiones: [...cfg.historialVersiones, entrada],
       actualizadoEn: ahora,
-    })
+    }))
   },
 
   /** Cambia el estado del repositorio de configuración */

@@ -17,7 +17,7 @@ import {
   Timestamp,
 } from 'firebase/firestore'
 import { v4 as uuidv4 } from 'uuid'
-import { getFirestoreDb, convertTimestamps } from '@/lib/firebase/firestore'
+import { getFirestoreDb, convertTimestamps, removeUndefined } from '@/lib/firebase/firestore'
 import { getFirebaseAuth } from '@/lib/firebase/auth'
 import { entidadesService, calcularNivelCompletitud } from '@/services/entidades.service'
 import { repositorioConfiguracionService } from '@/services/repositorio-configuracion.service'
@@ -59,11 +59,11 @@ async function registrarHistorial(
 ): Promise<void> {
   const db = getFirestoreDb()
   const historialRef = collection(db, COLECCION, proyectoId, 'historial')
-  await addDoc(historialRef, {
+  await addDoc(historialRef, removeUndefined({
     ...entrada,
     proyectoId,
     fechaHora: Timestamp.now(),
-  })
+  }))
 }
 
 function docToProyecto(id: string, data: Record<string, unknown>): Proyecto {
@@ -186,7 +186,7 @@ export const proyectosService = {
       creadoPor: uid,
     }
 
-    const docRef = await addDoc(collection(db, COLECCION), docData)
+    const docRef = await addDoc(collection(db, COLECCION), removeUndefined(docData))
 
     await registrarHistorial(docRef.id, {
       usuarioId: uid,
@@ -222,7 +222,7 @@ export const proyectosService = {
       updateData.moneda = data.presupuesto.moneda
     }
 
-    await updateDoc(doc(db, COLECCION, id), updateData)
+    await updateDoc(doc(db, COLECCION, id), removeUndefined(updateData))
 
     await registrarHistorial(id, {
       usuarioId: uid,

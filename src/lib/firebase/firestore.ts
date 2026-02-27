@@ -48,6 +48,41 @@ export function convertTimestamps<T extends DocumentData>(data: T): T {
   return converted;
 }
 
+// Checks if a value is a plain object (not a class instance like Timestamp or Date)
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return (
+    value !== null &&
+    typeof value === 'object' &&
+    Object.getPrototypeOf(value) === Object.prototype
+  );
+}
+
+/**
+ * Elimina recursivamente todos los valores `undefined` de un objeto.
+ * Firestore rechaza `undefined` en cualquier nivel del documento.
+ * Preserva Timestamps, Dates y otras instancias de clases tal como están.
+ * Usar `null` para campos vacíos opcionales, u omitir el campo en el objeto enviado.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function removeUndefined(obj: Record<string, any>): Record<string, any> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const result: Record<string, any> = {};
+  for (const [k, v] of Object.entries(obj)) {
+    if (v === undefined) continue;
+    if (Array.isArray(v)) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      result[k] = v.map((item: any) =>
+        isPlainObject(item) ? removeUndefined(item) : item
+      );
+    } else if (isPlainObject(v)) {
+      result[k] = removeUndefined(v);
+    } else {
+      result[k] = v;
+    }
+  }
+  return result;
+}
+
 // Generic get document with type safety
 export async function getDocument<T>(
   collectionPath: string,
@@ -90,15 +125,15 @@ export async function addDocument<T extends DocumentData>(
   const db = getFirestoreDb();
   const collectionRef = collection(db, collectionPath);
 
-  const docData = {
+  const docData = removeUndefined({
     ...data,
     createdAt: Timestamp.now(),
     updatedAt: Timestamp.now(),
     createdBy: userId,
     updatedBy: userId,
-  };
+  });
 
-  const docRef = await addDoc(collectionRef, docData);
+  const docRef = await addDoc(collectionRef, docData as DocumentData);
   return docRef.id;
 }
 
@@ -112,11 +147,11 @@ export async function updateDocument<T extends DocumentData>(
   const db = getFirestoreDb();
   const docRef = doc(db, collectionPath, documentId);
 
-  await updateDoc(docRef, {
+  await updateDoc(docRef, removeUndefined({
     ...data,
     updatedAt: Timestamp.now(),
     updatedBy: userId,
-  });
+  }) as DocumentData);
 }
 
 // Soft delete document (sets deletedAt timestamp)

@@ -1,0 +1,114 @@
+rules_version = '2';
+
+// ============================================================
+// Austranet CCO — Reglas de Seguridad Firestore
+// Versión: 1.0 (MVP — Fase de desarrollo)
+// Última actualización: 2026-02-27
+//
+// POLÍTICA: Solo usuarios autenticados del sistema CCO
+//           pueden leer y escribir en la base de datos.
+//           No hay acceso anónimo ni público.
+//
+// COLECCIONES PROTEGIDAS:
+//   entidades, proyectos, srs, requerimientos,
+//   sesiones_entrevista, escenarios, casos_prueba,
+//   terminos_dominio_srs, repositorios_configuracion
+//
+// TODO (Fase producción): implementar reglas por rol (CCO, Admin, Viewer)
+// ============================================================
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // --------------------------------------------------------
+    // Función auxiliar: verifica que el usuario esté autenticado
+    // --------------------------------------------------------
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    // --------------------------------------------------------
+    // MÓDULO 1 — Entidades (con subcolecciones)
+    // --------------------------------------------------------
+    match /entidades/{entidadId} {
+      allow read, write: if isAuthenticated();
+
+      // Glosario de dominio de la entidad
+      match /glosario/{terminoId} {
+        allow read, write: if isAuthenticated();
+      }
+
+      // Historial de cambios (append-only en código, read-only en reglas)
+      match /historial/{entradaId} {
+        allow read: if isAuthenticated();
+        allow create: if isAuthenticated();
+        allow update, delete: if false; // Inmutable por diseño (M1-06)
+      }
+    }
+
+    // --------------------------------------------------------
+    // MÓDULO 2 — Proyectos (con subcolecciones)
+    // --------------------------------------------------------
+    match /proyectos/{proyectoId} {
+      allow read, write: if isAuthenticated();
+
+      // Historial de cambios del proyecto (inmutable)
+      match /historial/{entradaId} {
+        allow read: if isAuthenticated();
+        allow create: if isAuthenticated();
+        allow update, delete: if false; // Inmutable por diseño (M2-04)
+      }
+    }
+
+    // --------------------------------------------------------
+    // MÓDULO 2 — Repositorio de Configuración (M2-06)
+    // --------------------------------------------------------
+    match /repositorios_configuracion/{configId} {
+      allow read, write: if isAuthenticated();
+    }
+
+    // --------------------------------------------------------
+    // MÓDULO 3 — Alcance / SRS (M3-01 a M3-10)
+    // --------------------------------------------------------
+
+    // SRS principal (1 por proyecto)
+    match /srs/{srsId} {
+      allow read, write: if isAuthenticated();
+    }
+
+    // Requerimientos (RF, RNF, RD)
+    match /requerimientos/{reqId} {
+      allow read, write: if isAuthenticated();
+      // Soft-delete: los requerimientos nunca se eliminan físicamente (M3-09)
+      allow delete: if false;
+    }
+
+    // Sesiones de entrevista
+    match /sesiones_entrevista/{sesionId} {
+      allow read, write: if isAuthenticated();
+    }
+
+    // Escenarios de usuario
+    match /escenarios/{escenarioId} {
+      allow read, write: if isAuthenticated();
+    }
+
+    // Casos de prueba (M3-F7-02)
+    match /casos_prueba/{casoId} {
+      allow read, write: if isAuthenticated();
+    }
+
+    // Términos de dominio del SRS (M3-F1-03)
+    match /terminos_dominio_srs/{terminoId} {
+      allow read, write: if isAuthenticated();
+    }
+
+    // --------------------------------------------------------
+    // BLOQUEO TOTAL para cualquier otra colección no listada
+    // (defensa en profundidad)
+    // --------------------------------------------------------
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
