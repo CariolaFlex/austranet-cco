@@ -86,6 +86,7 @@ export const ESTADO_SRS_CONFIG = {
   en_validacion:     { label: 'En validación',     color: 'yellow' },
   aprobado:          { label: 'Aprobado',          color: 'green'  },
   con_observaciones: { label: 'Con observaciones', color: 'orange' },
+  cancelado:         { label: 'Cancelado (Gate 1)', color: 'red'   }, // M3-GATE1 No-Go
 } as const
 
 export const NIVEL_RIESGO_CONFIG = {

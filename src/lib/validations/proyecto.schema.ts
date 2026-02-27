@@ -67,11 +67,26 @@ export const paso1Schema = z.object({
 })
 
 // -------------------------------------------------------
-// PASO 2 — Metodología
+// PASO 2 — Metodología (M2-INT: incluye 7 campos decisorios + acuerdo)
 // -------------------------------------------------------
 export const paso2Schema = z.object({
-  metodologia: z.enum(['cascada', 'incremental', 'agil_scrum', 'agil_xp', 'rup', 'espiral']),
+  metodologia: z.enum(['cascada', 'incremental', 'agil_scrum', 'agil_xp', 'rup', 'espiral', 'hibrido']),
   justificacionMetodologia: z.string().optional(),
+  // M2-07: Campos decisorios del árbol de metodología
+  tamanoEquipo: z.number({ required_error: 'Tamaño estimado del equipo requerido' })
+    .int('Debe ser un número entero')
+    .min(1, 'El equipo debe tener al menos 1 persona')
+    .max(100, 'Máximo 100 personas'),
+  distribuidoGeograficamente: z.boolean(),
+  requiereRegulacionExterna: z.boolean(),
+  estabilidadRequerimientos: z.enum(['baja', 'media', 'alta'], {
+    required_error: 'Estabilidad de requerimientos requerida',
+  }),
+  clienteDisponibleParaIteraciones: z.boolean(),
+  tieneContratoFijo: z.boolean(),
+  // M2-07: Consentimiento del cliente y versión del acuerdo
+  clienteConsentioMetodologia: z.boolean(),
+  metodologiaVersion: z.number().int().min(1).default(1),
 })
 
 // -------------------------------------------------------

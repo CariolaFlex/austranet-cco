@@ -20,6 +20,8 @@ import { v4 as uuidv4 } from 'uuid'
 import { getFirestoreDb, convertTimestamps } from '@/lib/firebase/firestore'
 import { getFirebaseAuth } from '@/lib/firebase/auth'
 import { entidadesService, calcularNivelCompletitud } from '@/services/entidades.service'
+import { repositorioConfiguracionService } from '@/services/repositorio-configuracion.service'
+import { alcanceService } from '@/services/alcance.service'
 import type {
   Proyecto,
   EstadoProyecto,
@@ -235,7 +237,12 @@ export const proyectosService = {
 
   /**
    * Cambia el estado del proyecto.
+   * M2-INT-04: La transición borrador → pendiente_aprobacion requiere:
+   *   - metodologia registrada
+   *   - clienteConsentioMetodologia = true
+   *   - campos básicos de PASO 1 completos
    * Registra la transición en el historial con motivo obligatorio.
+   * Si la transición es borrador → pendiente_aprobacion, registra evento metodologia_acordada.
    */
   updateEstado: async (
     id: string,
@@ -248,6 +255,23 @@ export const proyectosService = {
 
     const actual = await proyectosService.getById(id)
     const estadoAnterior = actual?.estado
+
+    // M2-INT-04: Validar transición borrador → pendiente_aprobacion
+    if (estadoAnterior === 'borrador' && estado === 'pendiente_aprobacion' && actual) {
+      const faltantes: string[] = []
+      if (!actual.metodologia) faltantes.push('metodología acordada')
+      if (!actual.clienteConsentioMetodologia) faltantes.push('consentimiento del cliente')
+      if (!actual.nombre?.trim()) faltantes.push('nombre del proyecto')
+      if (!actual.clienteId?.trim()) faltantes.push('entidad cliente')
+      if (!actual.criticidad) faltantes.push('criticidad')
+
+      if (faltantes.length > 0) {
+        throw new Error(
+          `No se puede avanzar a pendiente_aprobacion. Faltan: ${faltantes.join(', ')}. ` +
+          'Completa el acuerdo de metodología (M2-07) en el wizard antes de activar el proyecto.'
+        )
+      }
+    }
 
     await updateDoc(doc(db, COLECCION, id), {
       estado,
@@ -263,6 +287,44 @@ export const proyectosService = {
       valorNuevo: estado,
       motivo,
     })
+
+    // M2-INT-04: Registrar evento metodologia_acordada al hacer la transición
+    if (estadoAnterior === 'borrador' && estado === 'pendiente_aprobacion' && actual?.metodologia) {
+      await registrarHistorial(id, {
+        usuarioId: uid,
+        usuarioNombre: userName,
+        tipoAccion: 'metodologia_acordada',
+        campoModificado: 'metodologia',
+        valorNuevo: JSON.stringify({
+          tipo: 'metodologia_acordada',
+          version: actual.metodologiaVersion ?? 1,
+          metodologia: actual.metodologia,
+          fecha: new Date().toISOString(),
+          clienteConsentio: actual.clienteConsentioMetodologia,
+        }),
+        motivo: `Metodología ${actual.metodologia} acordada. Versión ${actual.metodologiaVersion ?? 1}.`,
+      })
+
+      // M2-INT-05: Crear automáticamente el repositorio de configuración del proyecto
+      try {
+        await repositorioConfiguracionService.crearConfiguracionInicial(id, actual.metodologia)
+      } catch {
+        // No bloquear la transición si falla la creación del repositorio
+      }
+    }
+
+    // M3-TRIGGER: Crear automáticamente el SRS inicial cuando el proyecto pasa a activo_en_definicion.
+    // Este trigger es idempotente: crearSRSInicial verifica si ya existe antes de crear.
+    // La metodología del proyecto determina tipoSRS (M2-INT-03):
+    //   cascada/rup/espiral → 'completo' | incremental/hibrido → 'incremental' | agil_scrum/xp → 'epica'
+    if (estado === 'activo_en_definicion' && actual?.metodologia) {
+      try {
+        await alcanceService.crearSRSInicial(id, actual.metodologia)
+      } catch {
+        // No bloquear la transición si falla la creación del SRS
+        // El SRS se puede crear manualmente desde la UI del módulo de alcance
+      }
+    }
   },
 
   /**

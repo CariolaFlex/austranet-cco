@@ -107,12 +107,12 @@ FormField.displayName = 'FormField';
 export interface SelectProps extends React.SelectHTMLAttributes<HTMLSelectElement> {
   error?: boolean;
   helperText?: string;
-  options: { value: string; label: string }[];
+  options?: { value: string; label: string }[];
   placeholder?: string;
 }
 
 const Select = React.forwardRef<HTMLSelectElement, SelectProps>(
-  ({ className, error, helperText, options, placeholder, ...props }, ref) => {
+  ({ className, error, helperText, options = [], placeholder, children, ...props }, ref) => {
     return (
       <div className="w-full">
         <select
@@ -129,7 +129,7 @@ const Select = React.forwardRef<HTMLSelectElement, SelectProps>(
               {placeholder}
             </option>
           )}
-          {options.map((option) => (
+          {children ?? options.map((option) => (
             <option key={option.value} value={option.value}>
               {option.label}
             </option>

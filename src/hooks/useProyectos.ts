@@ -6,6 +6,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { proyectosService } from '@/services/proyectos.service'
+import { repositorioConfiguracionService } from '@/services/repositorio-configuracion.service'
 import type {
   FiltrosProyecto,
   CrearProyectoDTO,
@@ -13,6 +14,9 @@ import type {
   EstadoProyecto,
   LeccionesAprendidas,
   CausaCancelacion,
+  ItemConfiguracion,
+  SolicitudCambioRepositorio,
+  EstadoSCR,
 } from '@/types'
 
 /** Lista de proyectos con filtros opcionales */
@@ -205,5 +209,92 @@ export function useProyectosStats() {
     queryKey: ['proyectos', 'stats'],
     queryFn: () => proyectosService.getStats(),
     staleTime: 5 * 60 * 1000,
+  })
+}
+
+// ──────────────────────────────────────────────────────────
+// REPOSITORIO DE CONFIGURACIÓN — M2-06 (M2-INT-05/06)
+// ──────────────────────────────────────────────────────────
+
+/** Repositorio de configuración del proyecto (M2-06) */
+export function useConfiguracionProyecto(proyectoId: string) {
+  return useQuery({
+    queryKey: ['configuracion_proyecto', proyectoId],
+    queryFn: () => repositorioConfiguracionService.getByProyectoId(proyectoId),
+    enabled: !!proyectoId,
+    staleTime: 5 * 60 * 1000,
+  })
+}
+
+/** Agregar ítem al repositorio de configuración */
+export function useAgregarItemConfiguracion() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({
+      configuracionId,
+      item,
+    }: {
+      configuracionId: string
+      proyectoId: string
+      item: Omit<ItemConfiguracion, 'id'>
+    }) => repositorioConfiguracionService.agregarItem(configuracionId, item),
+    onSuccess: (_, variables) => {
+      qc.invalidateQueries({ queryKey: ['configuracion_proyecto', variables.proyectoId] })
+      toast.success('Ítem de configuración agregado')
+    },
+    onError: (error: Error) => {
+      toast.error(`Error al agregar ítem: ${error.message}`)
+    },
+  })
+}
+
+/** Crear solicitud de cambio al repositorio (SCR) */
+export function useCrearSCR() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({
+      configuracionId,
+      scr,
+    }: {
+      configuracionId: string
+      proyectoId: string
+      scr: Omit<SolicitudCambioRepositorio, 'id' | 'configuracionId' | 'estado' | 'creadoEn' | 'actualizadoEn' | 'creadoPor'>
+    }) => repositorioConfiguracionService.crearSCR(configuracionId, scr),
+    onSuccess: (_, variables) => {
+      qc.invalidateQueries({ queryKey: ['configuracion_proyecto', variables.proyectoId] })
+      toast.success('Solicitud de cambio creada')
+    },
+    onError: (error: Error) => {
+      toast.error(`Error al crear SCR: ${error.message}`)
+    },
+  })
+}
+
+/** Avanzar el estado de una SCR en el flujo CCB */
+export function useAvanzarSCR() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({
+      configuracionId,
+      scrId,
+      datos,
+    }: {
+      configuracionId: string
+      proyectoId: string
+      scrId: string
+      datos: {
+        nuevoEstado: EstadoSCR
+        analisisTecnico?: string
+        resolucionCCB?: 'aprobar' | 'rechazar' | 'diferir'
+        motivoCCB?: string
+      }
+    }) => repositorioConfiguracionService.avanzarSCR(configuracionId, scrId, datos),
+    onSuccess: (_, variables) => {
+      qc.invalidateQueries({ queryKey: ['configuracion_proyecto', variables.proyectoId] })
+      toast.success('Estado de SCR actualizado')
+    },
+    onError: (error: Error) => {
+      toast.error(`Error al avanzar SCR: ${error.message}`)
+    },
   })
 }

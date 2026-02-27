@@ -7,7 +7,7 @@
 // Paso 7: Revisión y activación
 // ============================================================
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { useForm, useFieldArray, Controller } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -16,6 +16,7 @@ import {
   Plus, Trash2, CheckCircle, ChevronRight, ChevronLeft,
   Users, AlertTriangle, Calendar, DollarSign, Eye, Loader2,
   Info, Shield, Clock, BarChart3, CheckSquare, XCircle,
+  Lightbulb, Ban, GitBranch,
 } from 'lucide-react'
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
@@ -37,7 +38,9 @@ import {
   RIESGOS_HEREDADOS,
   HITOS_SUGERIDOS,
 } from '@/constants/proyectos'
-import type { Entidad, TipoProyecto, CriticidadProyecto } from '@/types'
+import { calcularRecomendacionMetodologia, validarHardBlock } from '@/lib/metodologia/arbolDecision'
+import { calcularEfectosCascada, labelPoliticaEntregas } from '@/lib/metodologia/efectosCascada'
+import type { Entidad, TipoProyecto, CriticidadProyecto, InputsMetodologiaSnapshot } from '@/types'
 
 // -------------------------------------------------------
 // HELPERS
@@ -113,6 +116,15 @@ export function ProyectoWizard({ entidades }: ProyectoWizardProps) {
       clienteId: '',
       metodologia: undefined,
       justificacionMetodologia: '',
+      // M2-INT: Campos decisorios para árbol de metodología
+      tamanoEquipo: 1,
+      distribuidoGeograficamente: false,
+      requiereRegulacionExterna: false,
+      estabilidadRequerimientos: undefined,
+      clienteDisponibleParaIteraciones: false,
+      tieneContratoFijo: false,
+      clienteConsentioMetodologia: false,
+      metodologiaVersion: 1,
       equipo: [],
       riesgos: [],
       fechaInicio: '',
@@ -183,7 +195,11 @@ export function ProyectoWizard({ entidades }: ProyectoWizardProps) {
   const validarPasoActual = async (): Promise<boolean> => {
     const fieldsMap: Record<number, (keyof ProyectoWizardFormData)[]> = {
       1: ['nombre', 'codigo', 'descripcion', 'tipo', 'criticidad', 'clienteId'],
-      2: ['metodologia'],
+      2: [
+        'tamanoEquipo', 'distribuidoGeograficamente', 'requiereRegulacionExterna',
+        'estabilidadRequerimientos', 'clienteDisponibleParaIteraciones', 'tieneContratoFijo',
+        'metodologia', 'clienteConsentioMetodologia',
+      ],
       3: ['equipo'],
       4: ['riesgos'],
       5: ['fechaInicio', 'fechaFinEstimada', 'hitos'],
@@ -203,6 +219,13 @@ export function ProyectoWizard({ entidades }: ProyectoWizardProps) {
       if ((crit === 'alta' || crit === 'critica') && (!just || just.trim().length < 20)) {
         form.setError('justificacionMetodologia', {
           message: 'Justificación obligatoria (mín. 20 caracteres) para criticidad alta o crítica'
+        })
+        return
+      }
+      // Validar que el cliente haya consentido (M2-INT-04)
+      if (!getValues('clienteConsentioMetodologia')) {
+        form.setError('clienteConsentioMetodologia', {
+          message: 'El consentimiento del cliente es obligatorio para avanzar al PASO 3'
         })
         return
       }
@@ -246,6 +269,24 @@ export function ProyectoWizard({ entidades }: ProyectoWizardProps) {
           metodologia: data.metodologia,
           justificacionMetodologia: data.justificacionMetodologia,
           clienteId: data.clienteId,
+          // M2-INT-01: Campos decisorios y acuerdo de metodología
+          tamanoEquipo: data.tamanoEquipo,
+          distribuidoGeograficamente: data.distribuidoGeograficamente,
+          requiereRegulacionExterna: data.requiereRegulacionExterna,
+          estabilidadRequerimientos: data.estabilidadRequerimientos,
+          clienteDisponibleParaIteraciones: data.clienteDisponibleParaIteraciones,
+          tieneContratoFijo: data.tieneContratoFijo,
+          clienteConsentioMetodologia: data.clienteConsentioMetodologia,
+          metodologiaVersion: data.metodologiaVersion ?? 1,
+          inputsMetodologiaSnapshot: {
+            criticidad: data.criticidad,
+            tamanoEquipo: data.tamanoEquipo ?? 1,
+            distribuidoGeograficamente: data.distribuidoGeograficamente ?? false,
+            requiereRegulacionExterna: data.requiereRegulacionExterna ?? false,
+            estabilidadRequerimientos: data.estabilidadRequerimientos ?? 'media',
+            clienteDisponibleParaIteraciones: data.clienteDisponibleParaIteraciones ?? false,
+            tieneContratoFijo: data.tieneContratoFijo ?? false,
+          },
           equipo: data.equipo,
           riesgos: data.riesgos.map((r) => ({
             ...r,
@@ -317,7 +358,7 @@ export function ProyectoWizard({ entidades }: ProyectoWizardProps) {
       {paso === 1 && <Paso1DatosBasicos form={form} entidades={entidades} />}
 
       {/* Paso 2 — Metodología */}
-      {paso === 2 && <Paso2Metodologia form={form} criticidad={criticidad} />}
+      {paso === 2 && <Paso2Metodologia form={form} criticidad={criticidad} entidades={entidades} />}
 
       {/* Paso 3 — Equipo */}
       {paso === 3 && (
@@ -511,29 +552,92 @@ function Paso1DatosBasicos({
 }
 
 // -------------------------------------------------------
-// PASO 2 — METODOLOGÍA
+// PASO 2 — METODOLOGÍA (M2-INT: árbol de decisión + acuerdo)
 // -------------------------------------------------------
 
 function Paso2Metodologia({
   form,
   criticidad,
+  entidades,
 }: {
   form: ReturnType<typeof useForm<ProyectoWizardFormData>>
   criticidad?: CriticidadProyecto
+  entidades: Entidad[]
 }) {
-  const { register, control, watch, formState: { errors } } = form
+  const { register, control, watch, setValue, formState: { errors } } = form
   const metodologia = watch('metodologia')
-  const metConfig = metodologia ? METODOLOGIAS_CONFIG[metodologia] : null
+  const clienteId = watch('clienteId')
+  const tamanoEquipo = watch('tamanoEquipo') ?? 1
+  const distribuidoGeograficamente = watch('distribuidoGeograficamente') ?? false
+  const requiereRegulacionExterna = watch('requiereRegulacionExterna') ?? false
+  const estabilidadRequerimientos = watch('estabilidadRequerimientos')
+  const clienteDisponibleParaIteraciones = watch('clienteDisponibleParaIteraciones') ?? false
+  const tieneContratoFijo = watch('tieneContratoFijo') ?? false
+  const clienteConsentioMetodologia = watch('clienteConsentioMetodologia') ?? false
   const requiereJustificacion = criticidad === 'alta' || criticidad === 'critica'
+
+  // Sincronizar disponibilidadParaSprints desde la entidad cliente
+  const entidadCliente = entidades.find((e) => e.id === clienteId)
+  useEffect(() => {
+    if (entidadCliente?.disponibilidadParaSprints !== undefined) {
+      setValue('clienteDisponibleParaIteraciones', entidadCliente.disponibilidadParaSprints)
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [clienteId])
+
+  // Calcular recomendación del árbol de decisión (M2-07 §3.2)
+  const inputs: InputsMetodologiaSnapshot | null = estabilidadRequerimientos ? {
+    criticidad: criticidad ?? 'baja',
+    tamanoEquipo,
+    distribuidoGeograficamente,
+    requiereRegulacionExterna,
+    estabilidadRequerimientos,
+    clienteDisponibleParaIteraciones,
+    tieneContratoFijo,
+  } : null
+
+  const recomendacion = useMemo(
+    () => inputs ? calcularRecomendacionMetodologia(inputs) : null,
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [tamanoEquipo, distribuidoGeograficamente, requiereRegulacionExterna,
+     estabilidadRequerimientos, clienteDisponibleParaIteraciones, tieneContratoFijo, criticidad]
+  )
+
+  // Validar hard-block para la metodología seleccionada
+  const hardBlock = useMemo(
+    () => (metodologia && inputs) ? validarHardBlock(metodologia, inputs) : null,
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [metodologia, tamanoEquipo, distribuidoGeograficamente, requiereRegulacionExterna,
+     estabilidadRequerimientos, clienteDisponibleParaIteraciones, tieneContratoFijo]
+  )
+
+  // Efectos en cascada para la metodología seleccionada
+  const efectos = useMemo(
+    () => metodologia ? calcularEfectosCascada(metodologia) : null,
+    [metodologia]
+  )
+
+  const metConfig = metodologia ? METODOLOGIAS_CONFIG[metodologia as keyof typeof METODOLOGIAS_CONFIG] : null
+  const sobrescribeRecomendacion = recomendacion && metodologia && metodologia !== recomendacion.recomendacion
+
+  const BOOL_OPTS = [
+    { value: 'false', label: 'No' },
+    { value: 'true', label: 'Sí' },
+  ]
+  const ESTABILIDAD_OPTS = [
+    { value: 'baja', label: 'Baja — cambian frecuentemente' },
+    { value: 'media', label: 'Media — cambian moderadamente' },
+    { value: 'alta', label: 'Alta — estables desde el inicio' },
+  ]
 
   return (
     <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
-          <span>⚙️</span> Paso 2 — Metodología de desarrollo
+          <GitBranch className="h-5 w-5" /> Paso 2 — Metodología de desarrollo (M2-07)
         </CardTitle>
         <p className="text-sm text-muted-foreground">
-          Selecciona la metodología más adecuada según el tipo de proyecto y características del equipo.
+          Completa los inputs del árbol de decisión para obtener la recomendación del sistema.
           {requiereJustificacion && (
             <span className="text-orange-600 dark:text-orange-400 font-medium ml-1">
               (Justificación obligatoria — criticidad {criticidad})
@@ -541,73 +645,323 @@ function Paso2Metodologia({
           )}
         </p>
       </CardHeader>
-      <CardContent className="space-y-4">
-        {/* Selector de metodología como tarjetas */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-          {Object.entries(METODOLOGIAS_CONFIG).map(([key, cfg]) => (
-            <button
-              key={key}
-              type="button"
-              onClick={() => form.setValue('metodologia', key as never)}
-              className={`text-left p-3 rounded-lg border-2 transition-all ${
-                metodologia === key
-                  ? 'border-primary bg-primary/5 dark:bg-primary/10'
-                  : 'border-border hover:border-primary/40 hover:bg-muted/50'
-              }`}
+      <CardContent className="space-y-6">
+
+        {/* ── SECCIÓN A: Inputs del árbol de decisión ── */}
+        <div>
+          <h4 className="text-sm font-semibold text-foreground mb-3 flex items-center gap-2">
+            <Info className="h-4 w-4 text-primary" />
+            Sección A — Inputs para la decisión (M2-07 §3.1)
+          </h4>
+          <div className="p-3 bg-muted/40 rounded-lg text-xs text-muted-foreground mb-3">
+            Criticidad seleccionada en PASO 1: <strong className="text-foreground">{criticidad ?? '—'}</strong>
+            {entidadCliente && (
+              <span className="ml-3">
+                · Entidad: <strong className="text-foreground">{entidadCliente.razonSocial}</strong>
+                {entidadCliente.disponibilidadParaSprints !== undefined && (
+                  <span> · Disponibilidad sprints: <strong>{entidadCliente.disponibilidadParaSprints ? 'Sí' : 'No'}</strong></span>
+                )}
+              </span>
+            )}
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <FormField
+              label="Tamaño estimado del equipo *"
+              error={errors.tamanoEquipo?.message}
             >
-              <div className="flex items-center justify-between mb-1">
-                <span className="font-medium text-sm">{cfg.label}</span>
-                <Badge variant="outline" className={`text-xs ${cfg.tipo === 'agil' ? 'text-green-700 border-green-300' : cfg.tipo === 'hibrido' ? 'text-purple-700 border-purple-300' : 'text-blue-700 border-blue-300'}`}>
-                  {cfg.tipo}
-                </Badge>
-              </div>
-              <p className="text-xs text-muted-foreground line-clamp-2">{cfg.mejorPara}</p>
-            </button>
-          ))}
+              <Input
+                type="number"
+                min={1}
+                max={100}
+                {...register('tamanoEquipo', { valueAsNumber: true })}
+                placeholder="ej. 5"
+              />
+            </FormField>
+
+            <FormField
+              label="Estabilidad de requerimientos *"
+              error={errors.estabilidadRequerimientos?.message}
+            >
+              <Controller
+                control={control}
+                name="estabilidadRequerimientos"
+                render={({ field: f }) => (
+                  <Select
+                    value={f.value ?? ''}
+                    onChange={f.onChange}
+                    options={ESTABILIDAD_OPTS}
+                    placeholder="Seleccionar..."
+                  />
+                )}
+              />
+            </FormField>
+
+            <FormField
+              label="¿Equipo distribuido geográficamente? *"
+              error={errors.distribuidoGeograficamente?.message}
+            >
+              <Controller
+                control={control}
+                name="distribuidoGeograficamente"
+                render={({ field: f }) => (
+                  <Select
+                    value={f.value ? 'true' : 'false'}
+                    onChange={(e) => f.onChange(e.target.value === 'true')}
+                    options={BOOL_OPTS}
+                  />
+                )}
+              />
+            </FormField>
+
+            <FormField
+              label="¿Requiere regulación externa? *"
+              error={errors.requiereRegulacionExterna?.message}
+            >
+              <Controller
+                control={control}
+                name="requiereRegulacionExterna"
+                render={({ field: f }) => (
+                  <Select
+                    value={f.value ? 'true' : 'false'}
+                    onChange={(e) => f.onChange(e.target.value === 'true')}
+                    options={BOOL_OPTS}
+                  />
+                )}
+              />
+            </FormField>
+
+            <FormField
+              label="¿Cliente disponible para iteraciones? *"
+              error={errors.clienteDisponibleParaIteraciones?.message}
+            >
+              <Controller
+                control={control}
+                name="clienteDisponibleParaIteraciones"
+                render={({ field: f }) => (
+                  <Select
+                    value={f.value ? 'true' : 'false'}
+                    onChange={(e) => f.onChange(e.target.value === 'true')}
+                    options={BOOL_OPTS}
+                  />
+                )}
+              />
+            </FormField>
+
+            <FormField
+              label="¿Tiene contrato de precio fijo? *"
+              error={errors.tieneContratoFijo?.message}
+            >
+              <Controller
+                control={control}
+                name="tieneContratoFijo"
+                render={({ field: f }) => (
+                  <Select
+                    value={f.value ? 'true' : 'false'}
+                    onChange={(e) => f.onChange(e.target.value === 'true')}
+                    options={BOOL_OPTS}
+                  />
+                )}
+              />
+            </FormField>
+          </div>
         </div>
-        {errors.metodologia && (
-          <p className="text-sm text-destructive">{errors.metodologia.message}</p>
+
+        {/* ── SECCIÓN B: Recomendación del árbol ── */}
+        {recomendacion && (
+          <div className="p-4 rounded-lg border-2 border-primary/30 bg-primary/5">
+            <h4 className="text-sm font-semibold mb-2 flex items-center gap-2">
+              <Lightbulb className="h-4 w-4 text-primary" />
+              Sección B — Recomendación del árbol de decisión (M2-07 §3.2)
+            </h4>
+            <div className="flex items-center gap-2 mb-2">
+              <Badge className="bg-primary text-primary-foreground text-sm px-3 py-1">
+                RECOMENDADO: {METODOLOGIAS_CONFIG[recomendacion.recomendacion as keyof typeof METODOLOGIAS_CONFIG]?.label ?? recomendacion.recomendacion}
+              </Badge>
+            </div>
+            <p className="text-xs text-muted-foreground">{recomendacion.justificacion}</p>
+            {recomendacion.rutaDecision.length > 0 && (
+              <details className="mt-2">
+                <summary className="text-xs text-primary cursor-pointer">Ver ruta del árbol</summary>
+                <ul className="mt-1 space-y-0.5 pl-4">
+                  {recomendacion.rutaDecision.map((paso, i) => (
+                    <li key={i} className="text-xs text-muted-foreground list-disc">{paso}</li>
+                  ))}
+                </ul>
+              </details>
+            )}
+          </div>
         )}
 
-        {/* Info card de la metodología seleccionada */}
-        {metConfig && (
-          <div className="mt-4 p-4 bg-muted/50 rounded-lg border">
+        {/* ── SECCIÓN C: Selector de metodología ── */}
+        <div>
+          <h4 className="text-sm font-semibold text-foreground mb-3 flex items-center gap-2">
+            <CheckSquare className="h-4 w-4 text-primary" />
+            Sección C — Metodología acordada
+          </h4>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {Object.entries(METODOLOGIAS_CONFIG).map(([key, cfg]) => {
+              const esRecomendada = recomendacion?.recomendacion === key
+              const hardBlockEstaMetod = inputs ? validarHardBlock(key as never, inputs) : null
+              const tieneBloqueo = hardBlockEstaMetod ? !hardBlockEstaMetod.esValido : false
+              return (
+                <button
+                  key={key}
+                  type="button"
+                  disabled={tieneBloqueo}
+                  onClick={() => !tieneBloqueo && setValue('metodologia', key as never)}
+                  className={`text-left p-3 rounded-lg border-2 transition-all relative ${
+                    tieneBloqueo
+                      ? 'border-red-200 bg-red-50/50 dark:bg-red-900/10 opacity-60 cursor-not-allowed'
+                      : metodologia === key
+                      ? 'border-primary bg-primary/5 dark:bg-primary/10'
+                      : 'border-border hover:border-primary/40 hover:bg-muted/50'
+                  }`}
+                >
+                  <div className="flex items-center justify-between mb-1 flex-wrap gap-1">
+                    <span className="font-medium text-sm">{cfg.label}</span>
+                    <div className="flex gap-1">
+                      {esRecomendada && (
+                        <Badge className="bg-primary text-primary-foreground text-xs px-1.5 py-0">
+                          ★ RECOMENDADO
+                        </Badge>
+                      )}
+                      {tieneBloqueo && (
+                        <Badge variant="destructive" className="text-xs px-1.5 py-0">
+                          <Ban className="h-2.5 w-2.5 mr-0.5" />BLOQUEADO
+                        </Badge>
+                      )}
+                      <Badge variant="outline" className={`text-xs ${cfg.tipo === 'agil' ? 'text-green-700 border-green-300' : cfg.tipo === 'hibrido' ? 'text-purple-700 border-purple-300' : 'text-blue-700 border-blue-300'}`}>
+                        {cfg.tipo}
+                      </Badge>
+                    </div>
+                  </div>
+                  <p className="text-xs text-muted-foreground line-clamp-2">{cfg.mejorPara}</p>
+                  {tieneBloqueo && (
+                    <p className="text-xs text-red-600 dark:text-red-400 mt-1 line-clamp-2">
+                      {hardBlockEstaMetod?.mensajeBloqueo}
+                    </p>
+                  )}
+                </button>
+              )
+            })}
+          </div>
+          {errors.metodologia && (
+            <p className="text-sm text-destructive mt-1">{errors.metodologia.message}</p>
+          )}
+
+          {/* Hard-block activo para la metodología seleccionada */}
+          {hardBlock && !hardBlock.esValido && (
+            <div className="mt-3 p-3 bg-red-50 dark:bg-red-900/20 rounded-lg border border-red-200 dark:border-red-800">
+              <p className="text-sm text-red-700 dark:text-red-300 flex items-start gap-2">
+                <Ban className="h-4 w-4 shrink-0 mt-0.5" />
+                <span>{hardBlock.mensajeBloqueo}</span>
+              </p>
+            </div>
+          )}
+        </div>
+
+        {/* Info card de la metodología seleccionada + efectos en cascada */}
+        {metConfig && efectos && (
+          <div className="p-4 bg-muted/50 rounded-lg border">
             <h4 className="font-semibold text-sm mb-3 flex items-center gap-2">
               <Info className="h-4 w-4 text-primary" />
-              {metConfig.label} — Características
+              {metConfig.label} — Implicaciones automáticas en el sistema (M2-07 §4)
             </h4>
-            <div className="grid grid-cols-2 gap-3 text-sm">
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-xs">
               <div>
-                <span className="text-muted-foreground">Tamaño de equipo:</span>
-                <p className="font-medium">{metConfig.tamanoEquipo}</p>
+                <span className="text-muted-foreground block">SRS (Módulo 3):</span>
+                <p className="font-medium">{efectos.tipoSRS} {efectos.validacionIncremental ? '· incremental' : ''}</p>
               </div>
               <div>
-                <span className="text-muted-foreground">Estabilidad reqs.:</span>
-                <p className="font-medium">{metConfig.estabilidadReqs}</p>
+                <span className="text-muted-foreground block">Estimación (M2-02):</span>
+                <p className="font-medium">{efectos.metodoEstimacionRecomendado.replace('_', ' ')}</p>
               </div>
               <div>
-                <span className="text-muted-foreground">Documentación:</span>
-                <p className="font-medium">{metConfig.documentacion}</p>
+                <span className="text-muted-foreground block">Roles obligatorios:</span>
+                <p className="font-medium">{efectos.rolesObligatorios.join(', ')}</p>
               </div>
               <div>
-                <span className="text-muted-foreground">Entregable clave:</span>
-                <p className="font-medium">{metConfig.entregable}</p>
+                <span className="text-muted-foreground block">Política entregas:</span>
+                <p className="font-medium">{labelPoliticaEntregas(efectos.politicaEntregas)}</p>
+              </div>
+              <div>
+                <span className="text-muted-foreground block">CI/CD:</span>
+                <p className="font-medium">{efectos.cicdObligatorio ? 'Obligatorio' : 'Opcional'}</p>
+              </div>
+              <div>
+                <span className="text-muted-foreground block">KPIs activos:</span>
+                <p className="font-medium">{efectos.kpisActivosPorDefecto.join(', ')}</p>
               </div>
             </div>
+            {sobrescribeRecomendacion && (
+              <div className="mt-3 p-2 bg-yellow-50 dark:bg-yellow-900/20 rounded border border-yellow-200">
+                <p className="text-xs text-yellow-700 dark:text-yellow-400 flex items-center gap-1">
+                  <AlertTriangle className="h-3 w-3" />
+                  Estás sobrescribiendo la recomendación del árbol. La justificación es obligatoria.
+                </p>
+              </div>
+            )}
           </div>
         )}
 
         {/* Justificación */}
         <FormField
-          label={`Justificación de la metodología${requiereJustificacion ? ' *' : ' (opcional)'}`}
+          label={`Justificación de la metodología${requiereJustificacion || sobrescribeRecomendacion ? ' *' : ' (opcional)'}`}
           error={errors.justificacionMetodologia?.message}
         >
           <Textarea
             {...register('justificacionMetodologia')}
-            placeholder="Explica por qué esta metodología es la más adecuada para este proyecto..."
+            placeholder={
+              sobrescribeRecomendacion
+                ? `Explica por qué elegiste ${metConfig?.label ?? metodologia} en lugar de ${METODOLOGIAS_CONFIG[recomendacion?.recomendacion as keyof typeof METODOLOGIAS_CONFIG]?.label ?? recomendacion?.recomendacion} (recomendada por el árbol)...`
+                : 'Explica por qué esta metodología es la más adecuada para este proyecto...'
+            }
             rows={3}
           />
         </FormField>
+
+        {/* ── SECCIÓN D: Consentimiento del cliente ── */}
+        <div className="p-4 rounded-lg border bg-muted/30">
+          <h4 className="text-sm font-semibold mb-3 flex items-center gap-2">
+            <Shield className="h-4 w-4 text-primary" />
+            Sección D — Acuerdo con el cliente (M2-07 §5)
+          </h4>
+          <p className="text-xs text-muted-foreground mb-3">
+            El cliente de la entidad debe aceptar explícitamente la metodología porque implica compromisos
+            sobre disponibilidad, frecuencia de revisiones y gestión de cambios.
+          </p>
+          <div
+            className={`flex items-start gap-3 p-3 rounded-lg border-2 cursor-pointer transition-colors ${
+              clienteConsentioMetodologia
+                ? 'border-green-400 bg-green-50 dark:bg-green-900/20'
+                : 'border-border hover:border-primary/40'
+            }`}
+            onClick={() => setValue('clienteConsentioMetodologia', !clienteConsentioMetodologia)}
+            role="checkbox"
+            aria-checked={clienteConsentioMetodologia}
+          >
+            <div className={`w-5 h-5 rounded border-2 flex items-center justify-center shrink-0 mt-0.5 ${
+              clienteConsentioMetodologia ? 'bg-green-500 border-green-500' : 'border-muted-foreground'
+            }`}>
+              {clienteConsentioMetodologia && <CheckSquare className="h-3 w-3 text-white" />}
+            </div>
+            <div>
+              <p className="text-sm font-medium">
+                El cliente ({entidadCliente?.razonSocial ?? 'entidad cliente'}) ha sido informado y acepta explícitamente:
+              </p>
+              <ul className="mt-1 space-y-1 text-xs text-muted-foreground list-disc pl-4">
+                <li>El tipo de entregas que recibirá ({efectos ? labelPoliticaEntregas(efectos.politicaEntregas) : '—'})</li>
+                <li>La frecuencia de revisiones requerida de su parte</li>
+                <li>La forma en que se gestionarán los cambios de requerimientos</li>
+                <li>La documentación que recibirá al finalizar el proyecto</li>
+              </ul>
+            </div>
+          </div>
+          {errors.clienteConsentioMetodologia && (
+            <p className="text-sm text-destructive mt-1">{errors.clienteConsentioMetodologia.message}</p>
+          )}
+        </div>
+
       </CardContent>
     </Card>
   )

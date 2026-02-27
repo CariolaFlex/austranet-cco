@@ -68,6 +68,17 @@ export const METODOLOGIAS_CONFIG = {
     documentacion: 'Moderada-Extensa',
     entregable: 'Prototipos iterativos validados',
   },
+  // M2-INT: Híbrido agregado desde M2-07 §4.6
+  hibrido: {
+    label: 'Híbrido',
+    tipo: 'hibrido' as const,
+    descripcion: 'Combinación de enfoques plan y ágil adaptada al contexto específico del proyecto',
+    mejorPara: 'Proyectos grandes con ágil no escalable sin adaptación; módulos con distinta estabilidad de reqs.',
+    tamanoEquipo: 'Cualquiera (depende de la combinación)',
+    estabilidadReqs: 'Variable por módulo o fase',
+    documentacion: 'Variable según la combinación elegida',
+    entregable: 'Depende de la combinación: fases RUP + sprints Scrum, etc.',
+  },
 } as const
 
 // -------------------------------------------------------

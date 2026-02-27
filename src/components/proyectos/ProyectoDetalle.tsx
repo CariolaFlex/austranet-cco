@@ -15,7 +15,7 @@ import {
   ArrowLeft, Pencil, RefreshCw, ExternalLink,
   Users, AlertTriangle, Calendar, DollarSign,
   Clock, CheckCircle, XCircle, AlertCircle,
-  BarChart3, Info, Shield,
+  BarChart3, Info, Shield, GitBranch,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -27,12 +27,20 @@ import {
   METODOLOGIAS_CONFIG,
   METODOS_ESTIMACION_CONFIG,
 } from '@/constants/proyectos'
-import { useProyectoHistorial } from '@/hooks/useProyectos'
+import {
+  useProyectoHistorial,
+  useConfiguracionProyecto,
+  useAgregarItemConfiguracion,
+  useCrearSCR,
+  useAvanzarSCR,
+} from '@/hooks/useProyectos'
 import { ProyectoKPIs } from './ProyectoKPIs'
 import { CambiarEstadoModal } from './CambiarEstadoModal'
 import { CambiarEstadoRiesgoModal } from './CambiarEstadoRiesgoModal'
 import { CerrarProyectoModal } from './CerrarProyectoModal'
 import { CancelarProyectoModal } from './CancelarProyectoModal'
+import { PanelCCBRepositorio } from './PanelCCBRepositorio'
+import { DashboardMetricasProceso } from './DashboardMetricasProceso'
 import type { Proyecto, Entidad, RiesgoProyecto } from '@/types'
 
 // -------------------------------------------------------
@@ -83,6 +91,8 @@ const TABS = [
   { id: 'hitos', label: 'Hitos', icon: Calendar },
   { id: 'presupuesto', label: 'Presupuesto', icon: DollarSign },
   { id: 'historial', label: 'Historial', icon: Clock },
+  { id: 'configuracion', label: 'Repositorio Config.', icon: GitBranch },
+  { id: 'metricas', label: 'Métricas GQM', icon: BarChart3 },
 ]
 
 // -------------------------------------------------------
@@ -104,6 +114,12 @@ export function ProyectoDetalle({ proyecto, entidad, onCambiarEstado }: Proyecto
   const [showCerrar, setShowCerrar] = useState(false)
   const [showCancelar, setShowCancelar] = useState(false)
   const [riesgoParaCambio, setRiesgoParaCambio] = useState<RiesgoProyecto | null>(null)
+
+  // Repositorio de configuración M2-06
+  const { data: configuracion, isLoading: loadingConfig } = useConfiguracionProyecto(proyecto.id)
+  const agregarItem = useAgregarItemConfiguracion()
+  const crearSCR = useCrearSCR()
+  const avanzarSCR = useAvanzarSCR()
 
   // Si viene un handler externo (desde la lista), úsalo; si no, modal interno
   const handleCambiarEstado = onCambiarEstado ?? (() => setShowCambiarEstado(true))
@@ -198,6 +214,44 @@ export function ProyectoDetalle({ proyecto, entidad, onCambiarEstado }: Proyecto
       {tabActivo === 'hitos' && <TabHitos proyecto={proyecto} />}
       {tabActivo === 'presupuesto' && <TabPresupuesto proyecto={proyecto} />}
       {tabActivo === 'historial' && <TabHistorial proyectoId={proyecto.id} />}
+      {tabActivo === 'configuracion' && (
+        <PanelCCBRepositorio
+          configuracion={configuracion ?? null}
+          proyectoId={proyecto.id}
+          isLoading={loadingConfig}
+          onAgregarItem={async (item) => {
+            if (!configuracion) return
+            await agregarItem.mutateAsync({
+              configuracionId: configuracion.id,
+              proyectoId: proyecto.id,
+              item,
+            })
+          }}
+          onCrearSCR={async (scr) => {
+            if (!configuracion) return
+            await crearSCR.mutateAsync({
+              configuracionId: configuracion.id,
+              proyectoId: proyecto.id,
+              scr,
+            })
+          }}
+          onAvanzarSCR={async (scrId, datos) => {
+            if (!configuracion) return
+            await avanzarSCR.mutateAsync({
+              configuracionId: configuracion.id,
+              proyectoId: proyecto.id,
+              scrId,
+              datos,
+            })
+          }}
+        />
+      )}
+      {tabActivo === 'metricas' && (
+        <DashboardMetricasProceso
+          proyecto={proyecto}
+          configuracion={configuracion ?? null}
+        />
+      )}
 
       {/* Modals */}
       {showCambiarEstado && (
@@ -756,6 +810,7 @@ function TabHistorial({ proyectoId }: { proyectoId: string }) {
     gestion_hitos: 'Gestión de hitos',
     cierre: 'Cierre del proyecto',
     cancelacion: 'Cancelación del proyecto',
+    metodologia_acordada: 'Metodología acordada (M2-07)',
   }
 
   if (isLoading) {
