@@ -78,7 +78,7 @@ export default function DetalleEntidadPage({ params }: Props) {
         <TabsList className="mb-4">
           <TabsTrigger value="informacion">Información</TabsTrigger>
           <TabsTrigger value="stakeholders">
-            Stakeholders ({entidad.stakeholders.length})
+            Stakeholders ({(entidad.stakeholders ?? []).length})
           </TabsTrigger>
           <TabsTrigger value="glosario">
             Glosario ({glosarioCount})
@@ -100,7 +100,7 @@ export default function DetalleEntidadPage({ params }: Props) {
                 )}
                 <InfoRow
                   label="Sector"
-                  value={entidad.sector.charAt(0).toUpperCase() + entidad.sector.slice(1)}
+                  value={entidad.sector ? entidad.sector.charAt(0).toUpperCase() + entidad.sector.slice(1) : '—'}
                 />
               </CardContent>
             </Card>
@@ -180,14 +180,14 @@ export default function DetalleEntidadPage({ params }: Props) {
         </TabsContent>
 
         <TabsContent value="stakeholders">
-          <StakeholdersTab stakeholders={entidad.stakeholders} />
+          <StakeholdersTab stakeholders={entidad.stakeholders ?? []} />
         </TabsContent>
 
         <TabsContent value="glosario">
           <GlosarioTab
             entidadId={entidadId}
             entidadNombre={entidad.nombreComercial ?? entidad.razonSocial}
-            stakeholders={entidad.stakeholders}
+            stakeholders={entidad.stakeholders ?? []}
             checklistActual={entidad.checklistGlosario}
           />
         </TabsContent>

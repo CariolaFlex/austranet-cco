@@ -53,6 +53,9 @@ export function calcularNivelCompletitud(
   entidad: Entidad,
   glosarioCount = 0
 ): 'minimo' | 'estandar' | 'completo' {
+  // Siempre operar sobre un array seguro
+  const stks = entidad.stakeholders ?? [];
+
   // NIVEL MÍNIMO (M1-07 §9)
   const cumpleMinimo =
     !!entidad.razonSocial?.trim() &&
@@ -60,15 +63,13 @@ export function calcularNivelCompletitud(
     !!entidad.tipo &&
     !!entidad.sector &&
     !!entidad.pais?.trim() &&
-    entidad.stakeholders.length >= 1 &&
+    stks.length >= 1 &&
     !!entidad.estado;
 
   if (!cumpleMinimo) return 'minimo';
 
   // NIVEL ESTÁNDAR (M1-07 §9): ≥2 stakeholders con influencia + factibilidad + glosario ≥5
-  const stakeholdersConInfluencia = entidad.stakeholders.filter(
-    (s) => !!s.nivelInfluencia
-  );
+  const stakeholdersConInfluencia = stks.filter((s) => !!s.nivelInfluencia);
   const tieneFactibilidad = !!entidad.respuestasFactibilidad;
   const cumpleEstandar =
     stakeholdersConInfluencia.length >= 2 &&
@@ -81,12 +82,8 @@ export function calcularNivelCompletitud(
   const ndaResuelto =
     entidad.tieneNDA === false ||
     (entidad.tieneNDA === true && !!entidad.fechaNDA);
-  const todosConCanal = entidad.stakeholders.every(
-    (s) => !!s.canalComunicacion?.trim()
-  );
-  const stakeholdersAltos = entidad.stakeholders.filter(
-    (s) => s.nivelInfluencia === 'alto'
-  ).length;
+  const todosConCanal = stks.every((s) => !!s.canalComunicacion?.trim());
+  const stakeholdersAltos = stks.filter((s) => s.nivelInfluencia === 'alto').length;
 
   if (ndaResuelto && glosarioCount >= 10 && todosConCanal && stakeholdersAltos >= 2) {
     return 'completo';
@@ -158,7 +155,13 @@ async function registrarHistorial(
 }
 
 function docToEntidad(id: string, data: Record<string, unknown>): Entidad {
-  return convertTimestamps({ id, ...data }) as Entidad;
+  const converted = convertTimestamps({ id, ...data }) as Entidad;
+  // Garantizar que stakeholders siempre es un array.
+  // Firestore omite los arrays vacíos al escribir, por lo que puede venir undefined.
+  if (!Array.isArray(converted.stakeholders)) {
+    converted.stakeholders = [];
+  }
+  return converted;
 }
 
 // -------------------------------------------------------
@@ -216,7 +219,7 @@ export const entidadesService = {
     const docData = {
       ...data,
       estado: 'activo' as EstadoEntidad,
-      stakeholders: data.stakeholders.map((s) => ({
+      stakeholders: (data.stakeholders ?? []).map((s) => ({
         ...s,
         id: s.id || uuidv4(),
       })),

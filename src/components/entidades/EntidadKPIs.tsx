@@ -30,6 +30,7 @@ import type { Entidad } from '@/types';
 // -------------------------------------------------------
 
 function calcularPorcentajeCompletitud(entidad: Entidad): number {
+  const stks = entidad.stakeholders ?? [];
   const checks = [
     !!entidad.razonSocial?.trim(),
     !!entidad.rut?.trim(),
@@ -37,7 +38,7 @@ function calcularPorcentajeCompletitud(entidad: Entidad): number {
     !!entidad.sector,
     !!entidad.pais?.trim(),
     !!entidad.estado,
-    entidad.stakeholders.some((s) => !!s.nivelInfluencia),
+    stks.some((s) => !!s.nivelInfluencia),
     !!entidad.nivelRiesgo,
   ];
   return Math.round((checks.filter(Boolean).length / checks.length) * 100);
@@ -115,10 +116,11 @@ function CompletitudStepper({
   entidad: Entidad;
 }) {
   const nivelIdx = ORDEN[nivel];
+  const stks = entidad.stakeholders ?? [];
 
   // Calcular qué falta para nivel siguiente
   const pendienteEstandar: string[] = [];
-  const stkInfluencia = entidad.stakeholders.filter((s) => !!s.nivelInfluencia).length;
+  const stkInfluencia = stks.filter((s) => !!s.nivelInfluencia).length;
   if (stkInfluencia < 2) pendienteEstandar.push(`Stakeholders influencia: ${stkInfluencia}/2`);
   if (!entidad.respuestasFactibilidad) pendienteEstandar.push('Evaluación factibilidad pendiente');
   if (glosarioCount < 5) pendienteEstandar.push(`Glosario: ${glosarioCount}/5 términos`);
@@ -128,9 +130,9 @@ function CompletitudStepper({
     entidad.tieneNDA === false || (entidad.tieneNDA === true && !!entidad.fechaNDA);
   if (!ndaResuelto) pendienteCompleto.push('NDA pendiente de fecha');
   if (glosarioCount < 10) pendienteCompleto.push(`Glosario: ${glosarioCount}/10 términos`);
-  const sinCanal = entidad.stakeholders.filter((s) => !s.canalComunicacion?.trim()).length;
+  const sinCanal = stks.filter((s) => !s.canalComunicacion?.trim()).length;
   if (sinCanal > 0) pendienteCompleto.push(`${sinCanal} stk sin canal`);
-  const stkAltos = entidad.stakeholders.filter((s) => s.nivelInfluencia === 'alto').length;
+  const stkAltos = stks.filter((s) => s.nivelInfluencia === 'alto').length;
   if (stkAltos < 2) pendienteCompleto.push(`Stakeholders alto: ${stkAltos}/2`);
 
   return (
@@ -210,7 +212,8 @@ interface EntidadKPIsProps {
 export function EntidadKPIs({ entidad, glosarioCount = 0 }: EntidadKPIsProps) {
   const nivel = entidadesService.calcularNivelCompletitud(entidad, glosarioCount);
   const pct = calcularPorcentajeCompletitud(entidad);
-  const stkAltos = entidad.stakeholders.filter((s) => s.nivelInfluencia === 'alto').length;
+  const stks = entidad.stakeholders ?? [];
+  const stkAltos = stks.filter((s) => s.nivelInfluencia === 'alto').length;
   const { total: totalProy, activos: proyActivos, completados: proyComp } =
     useProyectosVinculados(entidad.id);
 
@@ -249,7 +252,7 @@ export function EntidadKPIs({ entidad, glosarioCount = 0 }: EntidadKPIsProps) {
             </div>
             <div className="text-2xl font-bold">{stkAltos}</div>
             <p className="text-xs text-muted-foreground mt-1">
-              de {entidad.stakeholders.length} registrados
+              de {stks.length} registrados
             </p>
             {stkAltos < 2 && (
               <Badge

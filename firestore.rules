@@ -31,11 +31,10 @@ service cloud.firestore {
     // MÓDULO 0 — Usuarios
     // --------------------------------------------------------
     match /usuarios/{userId} {
-      // Usuarios autenticados pueden leer y escribir su propio documento.
-      // Admin/superadmin pueden leer todos (necesario para panel de usuarios).
-      allow read: if isAuthenticated() && (
-        request.auth.uid == userId
-      );
+      // Todos los usuarios autenticados pueden leer cualquier documento de usuarios.
+      // Necesario para: panel de admin, búsqueda de usuarios, asignación de roles.
+      allow read: if isAuthenticated();
+      // Solo el propio usuario puede escribir su documento (perfil, preferencias).
       allow write: if isAuthenticated() && request.auth.uid == userId;
     }
 

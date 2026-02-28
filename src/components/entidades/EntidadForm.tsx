@@ -172,6 +172,7 @@ export function EntidadForm({ mode, entidad }: EntidadFormProps) {
   const { mutateAsync: crearEntidad, isPending: isCreating } = useCreateEntidad();
   const { mutateAsync: actualizarEntidad, isPending: isUpdating } = useUpdateEntidad();
   const isLoading = isCreating || isUpdating;
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
   const defaultValues: Partial<EntidadCreateFormData> = {
     tipo: entidad?.tipo ?? 'cliente',
@@ -260,26 +261,35 @@ export function EntidadForm({ mode, entidad }: EntidadFormProps) {
   // -------------------------------------------------------
 
   const onSubmit = async (data: EntidadCreateFormData) => {
-    // Calcular nivelRiesgo final si se completó evaluación
-    if (data.respuestasFactibilidad) {
-      data.nivelRiesgo = calcularNivelRiesgo(data.respuestasFactibilidad as RespuestasFactibilidad);
-    }
+    try {
+      setSubmitError(null);
 
-    // Ensure stakeholders have IDs (service also handles this, but be explicit)
-    const stakeholdersConId = data.stakeholders.map((s) => ({
-      ...s,
-      id: s.id ?? uuidv4(),
-    }));
-    const payload = { ...data, stakeholders: stakeholdersConId };
+      // Calcular nivelRiesgo final si se completó evaluación
+      if (data.respuestasFactibilidad) {
+        data.nivelRiesgo = calcularNivelRiesgo(data.respuestasFactibilidad as RespuestasFactibilidad);
+      }
 
-    if (mode === 'create') {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const nueva = await crearEntidad(payload as any);
-      router.push(ROUTES.ENTIDAD_DETALLE(nueva.id));
-    } else if (entidad) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      await actualizarEntidad({ id: entidad.id, data: payload as any });
-      router.push(ROUTES.ENTIDAD_DETALLE(entidad.id));
+      // Ensure stakeholders have IDs (service also handles this, but be explicit)
+      const stakeholdersConId = (data.stakeholders ?? []).map((s) => ({
+        ...s,
+        id: s.id ?? uuidv4(),
+      }));
+      const payload = { ...data, stakeholders: stakeholdersConId };
+
+      if (mode === 'create') {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const nueva = await crearEntidad(payload as any);
+        router.push(ROUTES.ENTIDAD_DETALLE(nueva.id));
+      } else if (entidad) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        await actualizarEntidad({ id: entidad.id, data: payload as any });
+        router.push(ROUTES.ENTIDAD_DETALLE(entidad.id));
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Error al guardar la entidad. Intente nuevamente.';
+      setSubmitError(msg);
+      // Scroll al error para que el usuario lo vea
+      window.scrollTo({ top: 0, behavior: 'smooth' });
     }
   };
 
@@ -290,6 +300,13 @@ export function EntidadForm({ mode, entidad }: EntidadFormProps) {
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
       <StepIndicator paso={paso} totalPasos={TOTAL_PASOS} />
+
+      {/* Error de envío */}
+      {submitError && (
+        <div className="rounded-md bg-destructive/10 border border-destructive/30 px-4 py-3 text-sm text-destructive">
+          <strong>Error:</strong> {submitError}
+        </div>
+      )}
 
       {/* ============================= PASO 1 ============================= */}
       {paso === 1 && (

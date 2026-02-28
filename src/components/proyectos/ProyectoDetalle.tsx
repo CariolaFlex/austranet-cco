@@ -221,28 +221,34 @@ export function ProyectoDetalle({ proyecto, entidad, onCambiarEstado }: Proyecto
           isLoading={loadingConfig}
           onAgregarItem={async (item) => {
             if (!configuracion) return
-            await agregarItem.mutateAsync({
-              configuracionId: configuracion.id,
-              proyectoId: proyecto.id,
-              item,
-            })
+            try {
+              await agregarItem.mutateAsync({
+                configuracionId: configuracion.id,
+                proyectoId: proyecto.id,
+                item,
+              })
+            } catch { /* manejado por onError del hook */ }
           }}
           onCrearSCR={async (scr) => {
             if (!configuracion) return
-            await crearSCR.mutateAsync({
-              configuracionId: configuracion.id,
-              proyectoId: proyecto.id,
-              scr,
-            })
+            try {
+              await crearSCR.mutateAsync({
+                configuracionId: configuracion.id,
+                proyectoId: proyecto.id,
+                scr,
+              })
+            } catch { /* manejado por onError del hook */ }
           }}
           onAvanzarSCR={async (scrId, datos) => {
             if (!configuracion) return
-            await avanzarSCR.mutateAsync({
-              configuracionId: configuracion.id,
-              proyectoId: proyecto.id,
-              scrId,
-              datos,
-            })
+            try {
+              await avanzarSCR.mutateAsync({
+                configuracionId: configuracion.id,
+                proyectoId: proyecto.id,
+                scrId,
+                datos,
+              })
+            } catch { /* manejado por onError del hook */ }
           }}
         />
       )}
@@ -759,11 +765,11 @@ function TabPresupuesto({ proyecto }: { proyecto: Proyecto }) {
             </div>
 
             {/* Supuestos */}
-            {p.supuestos?.length > 0 && (
+            {(p.supuestos ?? []).length > 0 && (
               <div>
                 <h4 className="text-sm font-medium mb-2">Supuestos</h4>
                 <ul className="space-y-1">
-                  {p.supuestos.map((s, i) => (
+                  {(p.supuestos ?? []).map((s, i) => (
                     <li key={i} className="flex items-start gap-2 text-sm">
                       <CheckCircle className="h-4 w-4 text-green-600 mt-0.5 shrink-0" />
                       {s}
@@ -774,11 +780,11 @@ function TabPresupuesto({ proyecto }: { proyecto: Proyecto }) {
             )}
 
             {/* Exclusiones */}
-            {p.exclusiones?.length > 0 && (
+            {(p.exclusiones ?? []).length > 0 && (
               <div>
                 <h4 className="text-sm font-medium mb-2">Exclusiones</h4>
                 <ul className="space-y-1">
-                  {p.exclusiones.map((ex, i) => (
+                  {(p.exclusiones ?? []).map((ex, i) => (
                     <li key={i} className="flex items-start gap-2 text-sm">
                       <XCircle className="h-4 w-4 text-red-500 mt-0.5 shrink-0" />
                       {ex}

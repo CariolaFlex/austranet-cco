@@ -8,7 +8,7 @@ import { EntidadesTable } from '@/components/entidades/EntidadesTable';
 import { EntidadesFiltros } from '@/components/entidades/EntidadesFiltros';
 import { CambiarEstadoModal } from '@/components/entidades/CambiarEstadoModal';
 import { Skeleton } from '@/components/ui';
-import { useEntidades } from '@/hooks/useEntidades';
+import { useEntidades, useDeleteEntidad } from '@/hooks/useEntidades';
 import { useEntidadStore } from '@/store/useEntidadStore';
 import { ROUTES } from '@/constants';
 import type { Entidad } from '@/types';
@@ -16,7 +16,12 @@ import type { Entidad } from '@/types';
 export default function EntidadesPage() {
   const { filtrosActivos, setFiltros, clearFiltros } = useEntidadStore();
   const { data: entidades, isLoading, isError } = useEntidades(filtrosActivos);
+  const { mutate: eliminarEntidad } = useDeleteEntidad();
   const [entidadParaEstado, setEntidadParaEstado] = useState<Entidad | null>(null);
+
+  const handleDelete = (entidad: Entidad) => {
+    eliminarEntidad(entidad.id);
+  };
 
   if (isLoading) {
     return (
@@ -81,6 +86,7 @@ export default function EntidadesPage() {
           entidades={lista}
           loading={isLoading}
           onCambiarEstado={setEntidadParaEstado}
+          onDelete={handleDelete}
         />
       )}
 

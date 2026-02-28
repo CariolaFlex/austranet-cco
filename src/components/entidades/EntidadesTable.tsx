@@ -50,9 +50,10 @@ interface EntidadesTableProps {
   entidades: Entidad[];
   loading?: boolean;
   onCambiarEstado?: (entidad: Entidad) => void;
+  onDelete?: (entidad: Entidad) => void;
 }
 
-export function EntidadesTable({ entidades, loading, onCambiarEstado }: EntidadesTableProps) {
+export function EntidadesTable({ entidades, loading, onCambiarEstado, onDelete }: EntidadesTableProps) {
   const router = useRouter();
 
   const columns: Column<Entidad>[] = [
@@ -168,10 +169,8 @@ export function EntidadesTable({ entidades, loading, onCambiarEstado }: Entidade
           <DropdownMenuItem
             className="text-destructive"
             onClick={() => {
-              if (confirm(`¿Desactivar "${row.razonSocial}"?`)) {
-                import('@/hooks/useEntidades').then(({ useDeleteEntidad: _ }) => {
-                  // handled from parent
-                });
+              if (confirm(`¿Desactivar "${row.razonSocial}"?\n\nLa entidad pasará a estado inactivo. Esta acción puede revertirse cambiando el estado nuevamente.`)) {
+                onDelete?.(row);
               }
             }}
           >
