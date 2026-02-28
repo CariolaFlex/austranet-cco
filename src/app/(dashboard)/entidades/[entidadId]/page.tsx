@@ -1,6 +1,5 @@
 'use client';
 
-import { use } from 'react';
 import Link from 'next/link';
 import { ArrowLeft, Globe, MapPin, FileText } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -17,11 +16,11 @@ import { useGlosario } from '@/hooks/useGlosario';
 import { ROUTES } from '@/constants';
 
 interface Props {
-  params: Promise<{ entidadId: string }>;
+  params: { entidadId: string };
 }
 
 export default function DetalleEntidadPage({ params }: Props) {
-  const { entidadId } = use(params);
+  const { entidadId } = params;
   const { data: entidad, isLoading, isError } = useEntidad(entidadId);
   const { data: terminos = [] } = useGlosario(entidadId);
   const glosarioCount = terminos.length;

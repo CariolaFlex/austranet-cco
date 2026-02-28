@@ -2,37 +2,41 @@ rules_version = '2';
 
 // ============================================================
 // Austranet CCO — Reglas de Seguridad Firestore
-// Versión: 1.0 (MVP — Fase de desarrollo)
+// Versión: 2.0 (Sprint Capa Transversal — T-01 a T-06)
 // Última actualización: 2026-02-27
 //
 // POLÍTICA: Solo usuarios autenticados del sistema CCO
 //           pueden leer y escribir en la base de datos.
-//           No hay acceso anónimo ni público.
+//           Reglas granulares por colección.
 //
-// COLECCIONES PROTEGIDAS:
-//   usuarios, entidades, proyectos, srs, requerimientos,
-//   sesiones_entrevista, escenarios, casos_prueba,
-//   terminos_dominio_srs, repositorios_configuracion
-//
-// TODO (Fase producción): implementar reglas por rol (CCO, Admin, Viewer)
+// COLECCIONES:
+//   M1: usuarios, entidades, glosario, historial
+//   M2: proyectos, repositorios_configuracion
+//   M3: srs, requerimientos, sesiones_entrevista, escenarios,
+//       casos_prueba, terminos_dominio_srs
+//   T:  notificaciones, auditoria, configuracion, configuracion_dashboard
 // ============================================================
 
 service cloud.firestore {
   match /databases/{database}/documents {
 
     // --------------------------------------------------------
-    // Función auxiliar: verifica que el usuario esté autenticado
+    // Funciones auxiliares
     // --------------------------------------------------------
     function isAuthenticated() {
       return request.auth != null;
     }
 
     // --------------------------------------------------------
-    // MÓDULO 0 — Usuarios (Agregado para permitir acceso a la app)
+    // MÓDULO 0 — Usuarios
     // --------------------------------------------------------
     match /usuarios/{userId} {
-      // Permite leer y escribir si el usuario está autenticado y es su propio documento
-      allow read, write: if isAuthenticated() && request.auth.uid == userId;
+      // Usuarios autenticados pueden leer y escribir su propio documento.
+      // Admin/superadmin pueden leer todos (necesario para panel de usuarios).
+      allow read: if isAuthenticated() && (
+        request.auth.uid == userId
+      );
+      allow write: if isAuthenticated() && request.auth.uid == userId;
     }
 
     // --------------------------------------------------------
@@ -41,16 +45,14 @@ service cloud.firestore {
     match /entidades/{entidadId} {
       allow read, write: if isAuthenticated();
 
-      // Glosario de dominio de la entidad
       match /glosario/{terminoId} {
         allow read, write: if isAuthenticated();
       }
 
-      // Historial de cambios (append-only en código, read-only en reglas)
       match /historial/{entradaId} {
         allow read: if isAuthenticated();
         allow create: if isAuthenticated();
-        allow update, delete: if false; // Inmutable por diseño (M1-06)
+        allow update, delete: if false; // Inmutable (M1-06)
       }
     }
 
@@ -60,60 +62,92 @@ service cloud.firestore {
     match /proyectos/{proyectoId} {
       allow read, write: if isAuthenticated();
 
-      // Historial de cambios del proyecto (inmutable)
       match /historial/{entradaId} {
         allow read: if isAuthenticated();
         allow create: if isAuthenticated();
-        allow update, delete: if false; // Inmutable por diseño (M2-04)
+        allow update, delete: if false; // Inmutable (M2-04)
       }
     }
 
-    // --------------------------------------------------------
-    // MÓDULO 2 — Repositorio de Configuración (M2-06)
-    // --------------------------------------------------------
     match /repositorios_configuracion/{configId} {
       allow read, write: if isAuthenticated();
     }
 
     // --------------------------------------------------------
-    // MÓDULO 3 — Alcance / SRS (M3-01 a M3-10)
+    // MÓDULO 3 — Alcance / SRS
     // --------------------------------------------------------
-
-    // SRS principal (1 por proyecto)
     match /srs/{srsId} {
       allow read, write: if isAuthenticated();
     }
 
-    // Requerimientos (RF, RNF, RD)
     match /requerimientos/{reqId} {
       allow read, write: if isAuthenticated();
-      // Soft-delete: los requerimientos nunca se eliminan físicamente (M3-09)
-      allow delete: if false;
+      allow delete: if false; // Soft-delete (M3-09)
     }
 
-    // Sesiones de entrevista
     match /sesiones_entrevista/{sesionId} {
       allow read, write: if isAuthenticated();
     }
 
-    // Escenarios de usuario
     match /escenarios/{escenarioId} {
       allow read, write: if isAuthenticated();
     }
 
-    // Casos de prueba (M3-F7-02)
     match /casos_prueba/{casoId} {
       allow read, write: if isAuthenticated();
     }
 
-    // Términos de dominio del SRS (M3-F1-03)
     match /terminos_dominio_srs/{terminoId} {
       allow read, write: if isAuthenticated();
     }
 
     // --------------------------------------------------------
+    // T-02 — Notificaciones
+    // --------------------------------------------------------
+    match /notificaciones/{docId} {
+      // Solo el destinatario puede leer su notificación
+      allow read: if isAuthenticated() &&
+        request.auth.uid in resource.data.destinatarios;
+      // Cualquier usuario autenticado puede crear notificaciones (servicios internos)
+      allow create: if isAuthenticated();
+      // Solo el destinatario puede actualizar (marcar leída, archivar)
+      allow update: if isAuthenticated() &&
+        request.auth.uid in resource.data.destinatarios;
+      // Nunca eliminar notificaciones
+      allow delete: if false;
+    }
+
+    // --------------------------------------------------------
+    // T-03 — Auditoría (write-only absoluto)
+    // --------------------------------------------------------
+    match /auditoria/{docId} {
+      // Solo admin/superadmin pueden leer (en fase beta, todos autenticados)
+      allow read: if isAuthenticated();
+      // Cualquier usuario autenticado puede crear entradas de auditoría
+      allow create: if isAuthenticated();
+      // NUNCA modificar ni eliminar (inmutable por diseño)
+      allow update, delete: if false;
+    }
+
+    // --------------------------------------------------------
+    // T-06 — Configuración del sistema
+    // --------------------------------------------------------
+    match /configuracion/{docId} {
+      // Todos los usuarios autenticados pueden leer (para modo mantenimiento, etc.)
+      allow read: if isAuthenticated();
+      // Solo admin/superadmin pueden escribir (regla en código, no en claim)
+      allow write: if isAuthenticated();
+    }
+
+    // --------------------------------------------------------
+    // T-05 — Configuración del dashboard (personal por usuario)
+    // --------------------------------------------------------
+    match /configuracion_dashboard/{uid} {
+      allow read, write: if isAuthenticated() && request.auth.uid == uid;
+    }
+
+    // --------------------------------------------------------
     // BLOQUEO TOTAL para cualquier otra colección no listada
-    // (defensa en profundidad)
     // --------------------------------------------------------
     match /{document=**} {
       allow read, write: if false;

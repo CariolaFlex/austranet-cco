@@ -1,6 +1,5 @@
 'use client'
 
-import { use } from 'react'
 import { ArrowLeft, AlertCircle } from 'lucide-react'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
@@ -10,11 +9,11 @@ import { useEntidades } from '@/hooks/useEntidades'
 import { ROUTES } from '@/constants'
 
 interface Props {
-  params: Promise<{ proyectoId: string }>
+  params: { proyectoId: string }
 }
 
 export default function DetalleProyectoPage({ params }: Props) {
-  const { proyectoId } = use(params)
+  const { proyectoId } = params
   const { data: proyecto, isLoading, isError } = useProyecto(proyectoId)
   const { data: entidades = [] } = useEntidades()
 

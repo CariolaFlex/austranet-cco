@@ -1,6 +1,5 @@
 'use client'
 
-import { use } from 'react'
 import { AlertCircle, ArrowLeft } from 'lucide-react'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
@@ -10,11 +9,11 @@ import { ROUTES } from '@/constants'
 import { SRSPage } from '@/components/alcance/SRSPage'
 
 interface Props {
-  params: Promise<{ proyectoId: string }>
+  params: { proyectoId: string }
 }
 
 export default function AlcanceProyectoPage({ params }: Props) {
-  const { proyectoId } = use(params)
+  const { proyectoId } = params
   const { data: proyecto, isLoading: loadingProyecto } = useProyecto(proyectoId)
   const { data: srs, isLoading: loadingSRS } = useSRS(proyectoId)
 

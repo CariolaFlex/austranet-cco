@@ -21,6 +21,8 @@ import {
   ChevronRight,
   Network,
   LogOut,
+  Users,
+  ClipboardList,
   type LucideIcon,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -33,27 +35,63 @@ const iconMap: Record<string, LucideIcon> = {
   FolderKanban,
   FileText,
   Settings,
+  Users,
+  ClipboardList,
 };
 
+// Ítems de navegación admin (solo admin/superadmin)
+const ADMIN_NAV_ITEMS = [
+  {
+    label: 'Usuarios',
+    href: '/admin/usuarios',
+    icon: 'Users',
+    description: 'Gestión de accesos',
+  },
+  {
+    label: 'Auditoría',
+    href: '/admin/auditoria',
+    icon: 'ClipboardList',
+    description: 'Registro de actividad',
+  },
+] as const;
+
 // Grupos de navegación
-interface NavGroup {
-  label?: string;
-  items: typeof NAV_ITEMS[number][];
+interface NavItem {
+  label: string;
+  href: string;
+  icon: string;
+  description?: string;
 }
 
-const NAV_GROUPS: NavGroup[] = [
-  {
-    items: [NAV_ITEMS[0]],
-  },
-  {
-    label: 'Módulos',
-    items: [NAV_ITEMS[1], NAV_ITEMS[2], NAV_ITEMS[3]],
-  },
-  {
-    label: 'Sistema',
-    items: [NAV_ITEMS[4]],
-  },
-];
+interface NavGroup {
+  label?: string;
+  items: readonly NavItem[];
+}
+
+function buildNavGroups(isAdmin: boolean): NavGroup[] {
+  const groups: NavGroup[] = [
+    {
+      items: [NAV_ITEMS[0]],
+    },
+    {
+      label: 'Módulos',
+      items: [NAV_ITEMS[1], NAV_ITEMS[2], NAV_ITEMS[3]],
+    },
+    {
+      label: 'Sistema',
+      items: [NAV_ITEMS[4]],
+    },
+  ];
+
+  if (isAdmin) {
+    groups.push({
+      label: 'Administración',
+      items: ADMIN_NAV_ITEMS,
+    });
+  }
+
+  return groups;
+}
 
 interface SidebarProps {
   className?: string;
@@ -63,6 +101,9 @@ export function Sidebar({ className }: SidebarProps) {
   const pathname = usePathname();
   const { user, signOut } = useAuth();
   const { sidebarCollapsed, toggleSidebar, setMobileSidebarOpen } = useUIStore();
+
+  const isAdmin = user?.rol === 'admin' || user?.rol === 'superadmin';
+  const navGroups = buildNavGroups(isAdmin);
 
   const isActive = (href: string) => {
     if (href === '/dashboard') return pathname === href;
@@ -141,7 +182,7 @@ export function Sidebar({ className }: SidebarProps) {
 
       {/* ── Navegación ───────────────────────────────── */}
       <nav className="flex-1 overflow-y-auto py-3">
-        {NAV_GROUPS.map((group, groupIdx) => (
+        {navGroups.map((group, groupIdx) => (
           <div key={groupIdx} className={cn(groupIdx > 0 && 'mt-1')}>
             {/* Separador + label de grupo */}
             {groupIdx > 0 && (

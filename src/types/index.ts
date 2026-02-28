@@ -64,7 +64,7 @@ export type PrioridadRequerimiento = 'must' | 'should' | 'could' | 'wont'
 
 export type TipoRequerimiento = 'funcional' | 'no_funcional' | 'dominio'
 
-export type RolUsuario = 'admin' | 'gestor' | 'analista' | 'viewer' | 'tester'
+export type RolUsuario = 'superadmin' | 'admin' | 'gestor' | 'analista' | 'viewer' | 'tester'
 
 // ---------- ENTIDADES (MÓDULO 1) ----------
 
@@ -851,12 +851,17 @@ export type CrearTerminoDominioSRSDTO = Omit<TerminoDominioSRS, 'id' | 'creadoEn
 export interface Usuario {
   id: string
   nombre: string
+  apellido?: string
   email: string
   empresa?: string
   cargo?: string
   rol: RolUsuario
   activo: boolean
   creadoEn: Date
+  fechaUltimoAcceso?: Date
+  proyectosAsignados?: string[]
+  entidadesAcceso?: string[]
+  creadoPor?: string
 }
 
 // ---------- TIPOS AUXILIARES — MÓDULO 1 (Sprint 1) ----------
@@ -1116,4 +1121,254 @@ export interface MetricaCalidadProceso {
   }
   creadoEn: Date
   actualizadoEn: Date
+}
+
+// ============================================================
+// TIPOS TRANSVERSALES — Capa T (T-01 a T-06)
+// ============================================================
+
+// ---------- T-02 — NOTIFICACIONES FIRESTORE ----------
+
+export type TipoNotificacionFS =
+  | 'entidad_creada' | 'entidad_riesgo_alto' | 'entidad_sin_actividad'
+  | 'proyecto_creado' | 'proyecto_estado_cambio' | 'proyecto_hito_proximo'
+  | 'proyecto_hito_vencido' | 'proyecto_presupuesto_alerta' | 'proyecto_riesgo_materializado'
+  | 'srs_creado' | 'srs_estado_cambio' | 'srs_gate1_pendiente' | 'srs_gate2_pendiente'
+  | 'srs_observacion_agregada' | 'srs_bucle_limite'
+  | 'usuario_creado' | 'usuario_rol_cambiado'
+  | 'sistema_mantenimiento' | 'config_modificada'
+
+export type CanalNotificacion = 'inapp' | 'email' | 'ambos'
+export type PrioridadNotificacion = 'critica' | 'alta' | 'media' | 'baja'
+export type EstadoNotificacion = 'pendiente' | 'leida' | 'archivada' | 'expirada'
+
+export interface NotificacionFS {
+  id: string
+  tipo: TipoNotificacionFS
+  canal: CanalNotificacion
+  destinatarios: string[]        // UIDs
+  titulo: string
+  mensaje: string
+  accionRequerida: boolean
+  accionUrl?: string
+  entidadRelacionada?: { id: string; tipo: 'entidad' | 'proyecto' | 'srs' | 'usuario'; nombre: string }
+  modulo: 'M1' | 'M2' | 'M3' | 'T'
+  estado: EstadoNotificacion
+  fechaCreacion: Date
+  prioridad: PrioridadNotificacion
+  fechaExpiracion?: Date
+  escaladaEl?: Date
+}
+
+// ---------- T-03 — AUDITORÍA ----------
+
+export type AccionAuditoria =
+  // Auth
+  | 'LOGIN_EXITOSO' | 'LOGIN_FALLIDO' | 'LOGOUT' | 'ACCESO_DENEGADO'
+  | 'REGISTRO_USUARIO' | 'ROL_CAMBIADO' | 'USUARIO_DESACTIVADO'
+  // M1
+  | 'ENTIDAD_CREADA' | 'ENTIDAD_EDITADA' | 'ENTIDAD_ELIMINADA'
+  | 'STAKEHOLDER_CREADO' | 'GLOSARIO_ENTRADA_CREADA'
+  // M2
+  | 'PROYECTO_CREADO' | 'PROYECTO_ESTADO_CAMBIADO' | 'METODOLOGIA_ACORDADA'
+  | 'HITO_CREADO' | 'RIESGO_CREADO' | 'SCR_CREADO' | 'SCR_AVANZADO'
+  // M3
+  | 'SRS_CREADO' | 'SRS_ESTADO_CAMBIADO' | 'GATE1_PROCESADO' | 'GATE2_APROBADO'
+  | 'REQUERIMIENTO_CREADO' | 'REQUERIMIENTO_EDITADO' | 'BUCLE_REGISTRADO'
+  // T
+  | 'BUSQUEDA_GLOBAL' | 'CONFIG_MODIFICADA' | 'T06_CONFIGURACION_MODIFICADA'
+
+export interface EntradaAuditoria {
+  id: string
+  timestamp: Date
+  actor: {
+    uid: string
+    nombre: string
+    rol: RolUsuario
+    ip?: string
+  }
+  accion: AccionAuditoria
+  modulo: 'M1' | 'M2' | 'M3' | 'T'
+  entidad?: { id: string; tipo: string; nombre?: string }
+  descripcion: string
+  camposModificados?: Array<{ campo: string; valorAnterior: unknown; valorNuevo: unknown }>
+  resultado: 'exito' | 'error' | 'bloqueado'
+  motivoBloqueo?: string
+}
+
+// ---------- T-04 — BÚSQUEDA ----------
+
+export interface ResultadoBusqueda {
+  id: string
+  tipo: 'entidad' | 'proyecto' | 'srs' | 'requerimiento' | 'usuario'
+  modulo: 'M1' | 'M2' | 'M3' | 'T'
+  titulo: string
+  subtitulo?: string
+  url: string
+  relevancia: number
+}
+
+// ---------- T-05 — DASHBOARD ----------
+
+export interface WidgetConfig {
+  id: string
+  visible: boolean
+  orden: number
+}
+
+export interface ConfigDashboard {
+  uid: string
+  widgetsOcultos: string[]
+  ordenPersonalizado: string[]
+  actualizadoEl: Date
+}
+
+// ---------- T-06 — CONFIGURACIÓN DEL SISTEMA ----------
+
+export interface ConfiguracionSistema {
+  version: string
+  ultimaModificacion: Date
+  modificadoPor: string
+  notificaciones: {
+    plazoEscalamientoAltoHoras: number
+    plazoEscalamientoCriticoHoras: number
+    canalesHabilitados: { email: boolean; inapp: boolean }
+    retencionNotificacionesLeidasDias: number
+    limitePorPaginaCentroComunicaciones: number
+  }
+  auditoria: {
+    retencionesDias: {
+      login_exitoso: number
+      login_fallido: number
+      acceso_denegado: number
+      bajo: number
+      medio: number
+    }
+    exportacionHabilitada: boolean
+    limitePorPaginaUI: number
+  }
+  busqueda: {
+    limitePorDefecto: number
+    limiteMaximo: number
+    rateLimitRequestsPorMinuto: number
+    minimoCaracteresQuery: number
+    motorActivo: 'firestore_prefijo' | 'algolia' | 'typesense'
+  }
+  dashboard: {
+    layoutsDefectoPorRol: { admin: string[]; gestor: string[]; analista: string[]; viewer: string[] }
+    widgetsObligatoriosPorRol: { admin: string[]; gestor: string[]; analista: string[]; viewer: string[] }
+    pollingIntervalMetricasMs: number
+    limiteListenersSimultaneos: number
+  }
+  proyectos: {
+    semaforoRojo: {
+      diasHitoVencidoSinCerrar: number
+      porcentajeDesviacionPresupuesto: number
+      diasGateSinDecision: number
+      diasRiesgoMaterializadoSinMitigacion: number
+    }
+    semaforoAmarillo: {
+      diasHitoProximo: number
+      porcentajePresupuestoAlerta: number
+      diasGatePendienteAlerta: number
+    }
+    limiteIteracionesBucle: number
+    diasAlertaHitoProximo: number
+  }
+  srs: {
+    limiteIteracionesBucle: number
+    coberturaMinimaTrazabilidad: number
+    diasMaximosRevisionCliente: number
+    versionInicial: string
+    versionAprobada: string
+  }
+  entidades: {
+    nivelRiesgoAlertaConProyectos: ('alto' | 'critico')[]
+    diasSinActividadAlerta: number
+  }
+  sistema: {
+    nombreEmpresa: string
+    logoUrl?: string
+    zonaHoraria: string
+    idiomaDefecto: 'es'
+    modoMantenimiento: boolean
+    mensajeMantenimiento?: string
+    versionApp: string
+  }
+}
+
+export const CONFIG_SISTEMA_DEFAULTS: ConfiguracionSistema = {
+  version: '1.0.0',
+  ultimaModificacion: new Date(0),
+  modificadoPor: 'sistema',
+  notificaciones: {
+    plazoEscalamientoAltoHoras: 48,
+    plazoEscalamientoCriticoHoras: 24,
+    canalesHabilitados: { email: true, inapp: true },
+    retencionNotificacionesLeidasDias: 30,
+    limitePorPaginaCentroComunicaciones: 50,
+  },
+  auditoria: {
+    retencionesDias: { login_exitoso: 90, login_fallido: 365, acceso_denegado: 730, bajo: 730, medio: 1825 },
+    exportacionHabilitada: true,
+    limitePorPaginaUI: 50,
+  },
+  busqueda: {
+    limitePorDefecto: 20,
+    limiteMaximo: 50,
+    rateLimitRequestsPorMinuto: 30,
+    minimoCaracteresQuery: 2,
+    motorActivo: 'firestore_prefijo',
+  },
+  dashboard: {
+    layoutsDefectoPorRol: {
+      admin: ['W-A2', 'W-A1', 'W-A3', 'W-A4', 'W-A5', 'W-A6', 'W-A7'],
+      gestor: ['W-G1', 'W-G2', 'W-G3', 'W-G4', 'W-G5', 'W-G6'],
+      analista: ['W-AN1', 'W-AN2', 'W-AN3', 'W-AN4', 'W-AN5'],
+      viewer: ['W-V1', 'W-V2', 'W-V3'],
+    },
+    widgetsObligatoriosPorRol: {
+      admin: ['W-A2'],
+      gestor: ['W-G1', 'W-G2'],
+      analista: ['W-AN1', 'W-AN2'],
+      viewer: ['W-V1', 'W-V2'],
+    },
+    pollingIntervalMetricasMs: 300000,
+    limiteListenersSimultaneos: 3,
+  },
+  proyectos: {
+    semaforoRojo: {
+      diasHitoVencidoSinCerrar: 3,
+      porcentajeDesviacionPresupuesto: 20,
+      diasGateSinDecision: 5,
+      diasRiesgoMaterializadoSinMitigacion: 7,
+    },
+    semaforoAmarillo: {
+      diasHitoProximo: 3,
+      porcentajePresupuestoAlerta: 80,
+      diasGatePendienteAlerta: 2,
+    },
+    limiteIteracionesBucle: 3,
+    diasAlertaHitoProximo: 7,
+  },
+  srs: {
+    limiteIteracionesBucle: 3,
+    coberturaMinimaTrazabilidad: 80,
+    diasMaximosRevisionCliente: 5,
+    versionInicial: '0.1.0',
+    versionAprobada: '1.0.0',
+  },
+  entidades: {
+    nivelRiesgoAlertaConProyectos: ['alto', 'critico'],
+    diasSinActividadAlerta: 180,
+  },
+  sistema: {
+    nombreEmpresa: 'Austranet',
+    logoUrl: undefined,
+    zonaHoraria: 'America/Santiago',
+    idiomaDefecto: 'es',
+    modoMantenimiento: false,
+    mensajeMantenimiento: undefined,
+    versionApp: '1.0.0',
+  },
 }

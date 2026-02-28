@@ -8,7 +8,12 @@
 import {
   doc,
   getDoc,
+  getDocs,
   setDoc,
+  updateDoc,
+  collection,
+  query,
+  orderBy,
   Timestamp,
 } from 'firebase/firestore'
 import { getFirestoreDb } from '@/lib/firebase/firestore'
@@ -97,5 +102,32 @@ export const usuariosService = {
     const existente = await usuariosService.getById(data.uid)
     if (existente) return existente
     return usuariosService.crearDocumento(data)
+  },
+
+  /**
+   * Obtiene todos los usuarios del sistema (solo admin/superadmin).
+   */
+  getAll: async (): Promise<Usuario[]> => {
+    const db = getFirestoreDb()
+    const snap = await getDocs(
+      query(collection(db, COLECCION), orderBy('creadoEn', 'desc'))
+    )
+    return snap.docs.map((d) => docToUsuario(d.id, d.data() as Record<string, unknown>))
+  },
+
+  /**
+   * Actualiza el rol de un usuario.
+   */
+  updateRol: async (uid: string, nuevoRol: RolUsuario): Promise<void> => {
+    const db = getFirestoreDb()
+    await updateDoc(doc(db, COLECCION, uid), removeUndefined({ rol: nuevoRol }))
+  },
+
+  /**
+   * Activa o desactiva un usuario.
+   */
+  toggleActivo: async (uid: string, activo: boolean): Promise<void> => {
+    const db = getFirestoreDb()
+    await updateDoc(doc(db, COLECCION, uid), { activo })
   },
 }

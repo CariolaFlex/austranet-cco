@@ -25,6 +25,11 @@ export const ROUTES = {
   // Sistema
   CONFIGURACION: '/configuracion',
   ADMIN: '/admin',
+  // Transversal
+  NOTIFICACIONES: '/notificaciones',
+  ADMIN_USUARIOS: '/admin/usuarios',
+  ADMIN_AUDITORIA: '/admin/auditoria',
+  MANTENIMIENTO: '/mantenimiento',
 } as const
 
 // Items de navegación del Sidebar

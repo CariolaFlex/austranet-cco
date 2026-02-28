@@ -234,6 +234,20 @@ export const entidadesService = {
       valorNuevo: data.razonSocial,
     });
 
+    // Auditoría T-03 (silencioso — nunca rompe el flujo)
+    try {
+      const { auditoriaService } = await import('./auditoria.service')
+      const fbUser = getFirebaseAuth().currentUser
+      if (fbUser) await auditoriaService.registrar({
+        actor: { uid: fbUser.uid, nombre: fbUser.displayName ?? fbUser.email ?? 'Sistema', rol: 'analista' },
+        accion: 'ENTIDAD_CREADA',
+        modulo: 'M1',
+        entidad: { id: docRef.id, tipo: 'Entidad', nombre: data.razonSocial },
+        descripcion: `Entidad "${data.razonSocial}" creada`,
+        resultado: 'exito',
+      })
+    } catch { /* silencioso */ }
+
     return docToEntidad(docRef.id, {
       ...docData,
       creadoEn: ahora.toDate(),
@@ -267,6 +281,20 @@ export const entidadesService = {
       usuarioNombre: userName,
       tipoAccion: 'actualizacion_datos',
     });
+
+    // Auditoría T-03 (silencioso)
+    try {
+      const { auditoriaService } = await import('./auditoria.service')
+      const fbUser = getFirebaseAuth().currentUser
+      if (fbUser) await auditoriaService.registrar({
+        actor: { uid: fbUser.uid, nombre: fbUser.displayName ?? fbUser.email ?? 'Sistema', rol: 'analista' },
+        accion: 'ENTIDAD_EDITADA',
+        modulo: 'M1',
+        entidad: { id, tipo: 'Entidad' },
+        descripcion: 'Entidad actualizada',
+        resultado: 'exito',
+      })
+    } catch { /* silencioso */ }
 
     const updated = await entidadesService.getById(id);
     if (!updated) throw new Error('Entidad no encontrada después de actualizar');
@@ -303,6 +331,20 @@ export const entidadesService = {
       valorNuevo: estado,
       motivo,
     });
+
+    // Auditoría T-03 (silencioso)
+    try {
+      const { auditoriaService } = await import('./auditoria.service')
+      const fbUser = getFirebaseAuth().currentUser
+      if (fbUser) await auditoriaService.registrar({
+        actor: { uid: fbUser.uid, nombre: fbUser.displayName ?? fbUser.email ?? 'Sistema', rol: 'analista' },
+        accion: estado === 'inactivo' ? 'ENTIDAD_ELIMINADA' : 'ENTIDAD_EDITADA',
+        modulo: 'M1',
+        entidad: { id, tipo: 'Entidad' },
+        descripcion: `Estado de entidad cambiado a "${estado}". Motivo: ${motivo}`,
+        resultado: 'exito',
+      })
+    } catch { /* silencioso */ }
   },
 
   /**

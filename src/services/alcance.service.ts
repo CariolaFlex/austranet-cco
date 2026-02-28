@@ -217,6 +217,20 @@ export const alcanceService = {
       actualizadoEn: ahora,
     })
 
+    // Auditoría T-03 (silencioso)
+    try {
+      const { auditoriaService } = await import('./auditoria.service')
+      const fbUser = getFirebaseAuth().currentUser
+      if (fbUser) await auditoriaService.registrar({
+        actor: { uid: fbUser.uid, nombre: fbUser.displayName ?? fbUser.email ?? 'Sistema', rol: 'analista' },
+        accion: 'SRS_CREADO',
+        modulo: 'M3',
+        entidad: { id: ref.id, tipo: 'SRS', nombre: `SRS del proyecto ${proyectoId}` },
+        descripcion: `SRS inicial creado para proyecto ${proyectoId} (tipo: ${tipoSRS})`,
+        resultado: 'exito',
+      })
+    } catch { /* silencioso */ }
+
     return { id: ref.id, ...docData }
   },
 
@@ -326,6 +340,20 @@ export const alcanceService = {
       estado: nuevoEstadoSRS,
       actualizadoEn: Timestamp.now(),
     })
+
+    // Auditoría T-03 (silencioso)
+    try {
+      const { auditoriaService } = await import('./auditoria.service')
+      const fbUser = getFirebaseAuth().currentUser
+      if (fbUser) await auditoriaService.registrar({
+        actor: { uid: fbUser.uid, nombre: fbUser.displayName ?? fbUser.email ?? 'Sistema', rol: 'analista' },
+        accion: 'GATE1_PROCESADO',
+        modulo: 'M3',
+        entidad: { id: srsId, tipo: 'SRS' },
+        descripcion: `Gate 1 procesado: decisión "${decisionFinal}" (factibilidad global: ${global})`,
+        resultado: 'exito',
+      })
+    } catch { /* silencioso */ }
   },
 
   // ====================================================
@@ -372,6 +400,20 @@ export const alcanceService = {
       fechaAprobacion: Timestamp.now(),
       actualizadoEn: Timestamp.now(),
     })
+
+    // Auditoría T-03 (silencioso)
+    try {
+      const { auditoriaService } = await import('./auditoria.service')
+      const fbUser = getFirebaseAuth().currentUser
+      if (fbUser) await auditoriaService.registrar({
+        actor: { uid: fbUser.uid, nombre: fbUser.displayName ?? fbUser.email ?? 'Sistema', rol: 'analista' },
+        accion: 'GATE2_APROBADO',
+        modulo: 'M3',
+        entidad: { id: srsId, tipo: 'SRS' },
+        descripcion: `SRS aprobado formalmente (v1.0) por ${aprobadoPorNombre}`,
+        resultado: 'exito',
+      })
+    } catch { /* silencioso */ }
   },
 
   // ====================================================

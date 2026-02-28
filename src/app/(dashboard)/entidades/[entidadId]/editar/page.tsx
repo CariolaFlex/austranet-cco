@@ -1,6 +1,5 @@
 'use client';
 
-import { use } from 'react';
 import { ArrowLeft } from 'lucide-react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
@@ -10,11 +9,11 @@ import { useEntidad } from '@/hooks/useEntidades';
 import { ROUTES } from '@/constants';
 
 interface Props {
-  params: Promise<{ entidadId: string }>;
+  params: { entidadId: string };
 }
 
 export default function EditarEntidadPage({ params }: Props) {
-  const { entidadId } = use(params);
+  const { entidadId } = params;
   const { data: entidad, isLoading, isError } = useEntidad(entidadId);
 
   if (isLoading) {

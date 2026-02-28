@@ -195,6 +195,20 @@ export const proyectosService = {
       valorNuevo: `${data.nombre} (${data.codigo})`,
     })
 
+    // Auditoría T-03 (silencioso)
+    try {
+      const { auditoriaService } = await import('./auditoria.service')
+      const fbUser = getFirebaseAuth().currentUser
+      if (fbUser) await auditoriaService.registrar({
+        actor: { uid: fbUser.uid, nombre: fbUser.displayName ?? fbUser.email ?? 'Sistema', rol: 'analista' },
+        accion: 'PROYECTO_CREADO',
+        modulo: 'M2',
+        entidad: { id: docRef.id, tipo: 'Proyecto', nombre: data.nombre },
+        descripcion: `Proyecto "${data.nombre}" (${data.codigo}) creado`,
+        resultado: 'exito',
+      })
+    } catch { /* silencioso */ }
+
     return docToProyecto(docRef.id, {
       ...docData,
       creadoEn: ahora.toDate(),
@@ -325,6 +339,20 @@ export const proyectosService = {
         // El SRS se puede crear manualmente desde la UI del módulo de alcance
       }
     }
+
+    // Auditoría T-03 (silencioso)
+    try {
+      const { auditoriaService } = await import('./auditoria.service')
+      const fbUser = getFirebaseAuth().currentUser
+      if (fbUser) await auditoriaService.registrar({
+        actor: { uid: fbUser.uid, nombre: fbUser.displayName ?? fbUser.email ?? 'Sistema', rol: 'analista' },
+        accion: 'PROYECTO_ESTADO_CAMBIADO',
+        modulo: 'M2',
+        entidad: { id, tipo: 'Proyecto', nombre: actual?.nombre },
+        descripcion: `Estado de proyecto cambiado de "${estadoAnterior}" a "${estado}"`,
+        resultado: 'exito',
+      })
+    } catch { /* silencioso */ }
   },
 
   /**
@@ -428,6 +456,20 @@ export const proyectosService = {
     } catch {
       // No bloquear el cierre si falla la actualización de la entidad
     }
+
+    // Auditoría T-03 (silencioso)
+    try {
+      const { auditoriaService } = await import('./auditoria.service')
+      const fbUser = getFirebaseAuth().currentUser
+      if (fbUser) await auditoriaService.registrar({
+        actor: { uid: fbUser.uid, nombre: fbUser.displayName ?? fbUser.email ?? 'Sistema', rol: 'analista' },
+        accion: 'PROYECTO_ESTADO_CAMBIADO',
+        modulo: 'M2',
+        entidad: { id: proyectoId, tipo: 'Proyecto' },
+        descripcion: 'Proyecto cerrado como completado',
+        resultado: 'exito',
+      })
+    } catch { /* silencioso */ }
   },
 
   /**
@@ -472,6 +514,20 @@ export const proyectosService = {
     } catch {
       // No bloquear la cancelación si falla la actualización de la entidad
     }
+
+    // Auditoría T-03 (silencioso)
+    try {
+      const { auditoriaService } = await import('./auditoria.service')
+      const fbUser = getFirebaseAuth().currentUser
+      if (fbUser) await auditoriaService.registrar({
+        actor: { uid: fbUser.uid, nombre: fbUser.displayName ?? fbUser.email ?? 'Sistema', rol: 'analista' },
+        accion: 'PROYECTO_ESTADO_CAMBIADO',
+        modulo: 'M2',
+        entidad: { id: proyectoId, tipo: 'Proyecto' },
+        descripcion: `Proyecto cancelado. Causa: ${causa} — ${detalle}`,
+        resultado: 'exito',
+      })
+    } catch { /* silencioso */ }
   },
 
   /**
