@@ -23,7 +23,10 @@ export function useEntidad(id: string) {
     queryKey: ['entidades', id],
     queryFn: () => entidadesService.getById(id),
     enabled: !!id,
-    staleTime: 5 * 60 * 1000,
+    // staleTime: 0 → siempre re-fetch al montar la página de detalle.
+    // Garantiza que los datos se lean frescos desde Firestore sin depender del caché
+    // tras crear/editar una entidad (soluciona el problema de Stakeholders(0)).
+    staleTime: 0,
   });
 }
 
@@ -50,6 +53,11 @@ export function useCreateEntidad() {
   return useMutation({
     mutationFn: (data: CrearEntidadDTO) => entidadesService.create(data),
     onSuccess: (entidad) => {
+      // Pre-popular el caché individual con la entidad recién creada.
+      // La página de detalle monta con staleTime:0, pero esto evita una
+      // pantalla de loading innecesaria si la query se hidrata antes de la nav.
+      qc.setQueryData(['entidades', entidad.id], entidad);
+      // Invalidar la lista para que se refresque en segundo plano.
       qc.invalidateQueries({ queryKey: ['entidades'] });
       toast.success(`Entidad "${entidad.razonSocial}" creada correctamente`);
     },

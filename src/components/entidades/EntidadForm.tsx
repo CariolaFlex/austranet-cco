@@ -13,14 +13,13 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useForm, useFieldArray, Controller } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
 import { v4 as uuidv4 } from 'uuid';
 import { Plus, Trash2, CheckCircle, ChevronRight, ChevronLeft, User, AlertCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/lib';
 import { Badge } from '@/components/ui/badge';
 import { Input, Textarea, FormField, Select } from '@/components/ui/input';
-import { entidadCreateBaseSchema, type EntidadCreateFormData } from '@/lib/validations/entidad.schema';
+import { entidadBaseSchema, type EntidadCreateFormData } from '@/lib/validations/entidad.schema';
 import { calcularNivelRiesgo } from '@/services/entidades.service';
 import { useCreateEntidad, useUpdateEntidad } from '@/hooks/useEntidades';
 import { ROUTES } from '@/constants';
@@ -305,17 +304,16 @@ export function EntidadForm({ mode, entidad }: EntidadFormProps) {
 
   const {
     register,
-    handleSubmit,
     watch,
     control,
-    trigger,
     getValues,
+    setError,
+    clearErrors,
     formState: { errors },
   } = useForm<EntidadCreateFormData>({
-    // Usar schema BASE (ZodObject) — NO el refine (ZodEffects).
-    // ZodEffects + trigger() parcial causa fallos con Zod 3.25 + zodResolver.
-    // La validación NDA cross-field se maneja en onSubmit.
-    resolver: zodResolver(entidadCreateBaseSchema),
+    // SIN zodResolver: el resolver bloqueaba handleSubmit silenciosamente cuando
+    // los <Select> de factibilidad (Paso 3) se montaban con '' y fallaban z.enum().
+    // Toda la validación es ahora explícita: por paso en irSiguiente, y completa en onSubmit.
     defaultValues: buildDefaultValues(),
     mode: 'onChange',
     shouldUnregister: false,
@@ -373,49 +371,50 @@ export function EntidadForm({ mode, entidad }: EntidadFormProps) {
   // NAVEGACIÓN ENTRE PASOS
   // -------------------------------------------------------
 
-  const camposStep1: (keyof EntidadCreateFormData)[] = [
-    'tipo', 'razonSocial', 'rut', 'sector', 'pais',
-  ];
+  // Schema parcial de Paso 1 para validación manual (sin zodResolver)
+  const step1Schema = entidadBaseSchema.pick({
+    tipo: true,
+    razonSocial: true,
+    rut: true,
+    sector: true,
+    pais: true,
+  });
 
   const irSiguiente = async () => {
     try {
       setStepError(null);
+      clearErrors();
 
       if (paso === 1) {
-        const valido = await trigger(camposStep1);
-        if (!valido) {
-          const mensajes: string[] = [];
-          if (errors.tipo) mensajes.push('tipo de entidad');
-          if (errors.razonSocial) mensajes.push('razón social');
-          if (errors.rut) mensajes.push('RUT');
-          if (errors.sector) mensajes.push('sector');
-          if (errors.pais) mensajes.push('país');
-          setStepError(
-            mensajes.length > 0
-              ? `Corrige los siguientes campos antes de continuar: ${mensajes.join('; ')}`
-              : 'Hay errores de validación. Revisa los campos marcados en rojo.'
-          );
+        // Validación manual del Paso 1 con Zod (sin zodResolver global)
+        const result = step1Schema.safeParse({
+          tipo: getValues('tipo'),
+          razonSocial: getValues('razonSocial'),
+          rut: getValues('rut'),
+          sector: getValues('sector'),
+          pais: getValues('pais'),
+        });
+        if (!result.success) {
+          result.error.issues.forEach((issue) => {
+            const field = issue.path[0] as keyof EntidadCreateFormData;
+            if (field) setError(field, { type: 'manual', message: issue.message });
+          });
+          setStepError('Corrige los campos marcados en rojo antes de continuar.');
           window.scrollTo({ top: 0, behavior: 'smooth' });
           return;
         }
       } else if (paso === 2) {
-        // Validate stakeholders directly from form state.
-        // trigger(['stakeholders']) + zodResolver is unreliable with useFieldArray.
+        // Validación mínima: basta con que exista al menos 1 stakeholder en el array.
+        // La validación completa de campos ocurre en onSubmit.
         const stks = getValues('stakeholders');
-        const hayStakeholderValido =
-          Array.isArray(stks) &&
-          stks.length > 0 &&
-          stks.some((s) => s.nombre?.trim() && s.cargo?.trim() && s.email?.trim());
-        if (!hayStakeholderValido) {
-          setStepError(
-            'Agrega al menos un stakeholder con nombre, cargo y email completos.'
-          );
+        if (!Array.isArray(stks) || stks.length === 0) {
+          setStepError('Agrega al menos un stakeholder antes de continuar.');
           window.scrollTo({ top: 0, behavior: 'smooth' });
           return;
         }
       }
 
-      // Validation passed — persist and advance
+      // Validación pasada — persistir y avanzar
       persistState();
       setPaso((p) => Math.min(p + 1, TOTAL_PASOS));
     } catch (err) {
@@ -444,27 +443,67 @@ export function EntidadForm({ mode, entidad }: EntidadFormProps) {
   // SUBMIT
   // -------------------------------------------------------
 
-  const onSubmit = async (data: EntidadCreateFormData) => {
+  const handleFinalSubmit = async () => {
+    // Prevenir doble-submit durante una mutación activa
+    if (isLoading) return;
+
     try {
       setSubmitError(null);
 
-      // Validación cross-field NDA (equivale al .refine() que quitamos del resolver)
-      if (data.tieneNDA === true && !data.fechaNDA) {
+      // Leer valores directamente desde el estado del formulario (fuente de verdad)
+      const rawData = getValues();
+
+      // ── Stakeholders ──────────────────────────────────────────
+      // Usar getValues como fuente autoritativa (bypasa cualquier transformación del resolver)
+      const stakeholders = (rawData.stakeholders ?? []).filter(
+        (s) => s.nombre?.trim()
+      );
+      if (!stakeholders.length) {
+        setSubmitError('Debes agregar al menos un stakeholder con nombre. Vuelve al Paso 2.');
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+        return;
+      }
+
+      // ── Limpieza de respuestasFactibilidad ────────────────────
+      // Los <Select> del Paso 3 se montan con '' (placeholder).
+      // Eliminamos entradas vacías para no enviar strings inválidos a Firestore.
+      const rawRespuestas = rawData.respuestasFactibilidad;
+      const cleanRespuestas = (() => {
+        if (!rawRespuestas || typeof rawRespuestas !== 'object') return undefined;
+        const cleaned: Record<string, unknown> = {};
+        for (const [k, v] of Object.entries(rawRespuestas as Record<string, unknown>)) {
+          if (v !== '' && v !== null && v !== undefined) cleaned[k] = v;
+        }
+        return Object.keys(cleaned).length > 0
+          ? (cleaned as unknown as RespuestasFactibilidad)
+          : undefined;
+      })();
+
+      // ── Validación cross-field NDA ─────────────────────────────
+      if (rawData.tieneNDA === true && !rawData.fechaNDA) {
         setSubmitError('Si tiene NDA, debe indicar la fecha de firma.');
         window.scrollTo({ top: 0, behavior: 'smooth' });
         return;
       }
 
-      // Calcular nivelRiesgo final si se completó evaluación
-      if (data.respuestasFactibilidad) {
-        data.nivelRiesgo = calcularNivelRiesgo(data.respuestasFactibilidad as RespuestasFactibilidad);
-      }
+      // ── Calcular nivel de riesgo ──────────────────────────────
+      const nivelRiesgo = cleanRespuestas
+        ? calcularNivelRiesgo(cleanRespuestas)
+        : (rawData.nivelRiesgo ?? 'bajo');
 
-      const stakeholdersConId = (data.stakeholders ?? []).map((s) => ({
+      const stakeholdersConId = stakeholders.map((s) => ({
         ...s,
         id: s.id ?? uuidv4(),
       }));
-      const payload = { ...data, stakeholders: stakeholdersConId };
+
+      const payload = {
+        ...rawData,
+        stakeholders: stakeholdersConId,
+        respuestasFactibilidad: cleanRespuestas,
+        nivelRiesgo,
+      };
+
+      console.log('[EntidadForm] Submit → stakeholders:', stakeholdersConId.length, '| factibilidad:', !!cleanRespuestas);
 
       if (mode === 'create') {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -480,7 +519,6 @@ export function EntidadForm({ mode, entidad }: EntidadFormProps) {
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Error al guardar la entidad. Intente nuevamente.';
       setSubmitError(msg);
-      // Scroll al error para que el usuario lo vea
       window.scrollTo({ top: 0, behavior: 'smooth' });
     }
   };
@@ -491,14 +529,14 @@ export function EntidadForm({ mode, entidad }: EntidadFormProps) {
 
   return (
     <form
+      noValidate
       onSubmit={(e) => {
-        // Prevent Enter-key (or accidental) form submission on non-final steps.
-        // Only the last step has the real submit button.
-        if (paso < TOTAL_PASOS) {
-          e.preventDefault();
-          return;
-        }
-        handleSubmit(onSubmit)(e);
+        // Siempre prevenir el submit nativo del browser.
+        // En pasos no finales ignorar (los botones son type="button").
+        // En el Paso 3, el botón "Crear entidad" es type="submit" — ejecutar handleFinalSubmit.
+        e.preventDefault();
+        if (paso < TOTAL_PASOS) return;
+        void handleFinalSubmit();
       }}
       className="space-y-6"
     >
