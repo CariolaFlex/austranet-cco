@@ -49,10 +49,11 @@ export const rutSchema = z.string()
 export const emailSchema = z.string()
     .email('Email inválido');
 
-export const phoneSchema = z.string()
-    .regex(/^(\+?56)?[9][0-9]{8}$/, 'Formato: +56912345678 o 912345678')
-    .optional()
-    .or(z.literal(''));
+export const phoneSchema = z.union([
+    z.string().regex(/^(\+?56)?[0-9]{8}$/, 'Formato: +56912345678 o 912345678'),
+    z.literal(''),
+    z.undefined(),
+]);
 
 export const fechaSchema = z.date({
     required_error: 'Fecha requerida',

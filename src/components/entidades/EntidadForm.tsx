@@ -318,6 +318,7 @@ export function EntidadForm({ mode, entidad }: EntidadFormProps) {
     resolver: zodResolver(entidadCreateBaseSchema),
     defaultValues: buildDefaultValues(),
     mode: 'onChange',
+    shouldUnregister: false,
   });
 
   const { fields, append, remove } = useFieldArray({ control, name: 'stakeholders' });
@@ -459,12 +460,7 @@ export function EntidadForm({ mode, entidad }: EntidadFormProps) {
         data.nivelRiesgo = calcularNivelRiesgo(data.respuestasFactibilidad as RespuestasFactibilidad);
       }
 
-      // Ensure stakeholders are never undefined — fallback to getValues if the resolver
-      // didn't parse them (can happen when mode: 'onChange' and focus never left a field).
-      const stakeholdersRaw = data.stakeholders?.length
-        ? data.stakeholders
-        : getValues('stakeholders') ?? [];
-      const stakeholdersConId = stakeholdersRaw.map((s) => ({
+      const stakeholdersConId = (data.stakeholders ?? []).map((s) => ({
         ...s,
         id: s.id ?? uuidv4(),
       }));
