@@ -61,7 +61,23 @@ export const entidadBaseSchema = z.object({
 // en zodResolver + Zod 3.25.x. Las validaciones cross-field van en onSubmit.
 export const entidadCreateBaseSchema = entidadBaseSchema.extend({
   stakeholders: z.array(stakeholderSchema).min(1, 'Debe agregar al menos un stakeholder'),
-  respuestasFactibilidad: respuestasFactibilidadSchema.optional(),
+  // preprocess: los <Select> de Step 3 registran con '' al renderizar.
+  // Sin esto, zodResolver recibe {t1: '', t2: '', ...} (no-undefined) y
+  // falla en z.enum() → handleSubmit bloqueado silenciosamente.
+  // El preprocess convierte strings vacíos/null a undefined por campo,
+  // y retorna undefined si el objeto limpio queda vacío.
+  respuestasFactibilidad: z.preprocess(
+    (raw) => {
+      if (raw === null || raw === undefined) return undefined;
+      if (typeof raw !== 'object' || Array.isArray(raw)) return undefined;
+      const cleaned: Record<string, unknown> = {};
+      for (const [k, v] of Object.entries(raw as Record<string, unknown>)) {
+        if (v !== '' && v !== null && v !== undefined) cleaned[k] = v;
+      }
+      return Object.keys(cleaned).length > 0 ? cleaned : undefined;
+    },
+    respuestasFactibilidadSchema.partial().optional()
+  ),
   tieneNDA: z.boolean().default(false),
   fechaNDA: z.date().optional(),
   notas: z.string().optional(),

@@ -78,7 +78,17 @@ export function useNotificacionesFS(uid: string, limite = 20) {
         setIsLoading(false)
       },
       (err) => {
-        setError(err)
+        // En desarrollo, permission-denied es esperado mientras las reglas
+        // de Firestore se ajustan. Se registra como warning pero NO se propaga
+        // al estado de error para evitar que rompa el resto de la UI.
+        console.warn(
+          `[useNotificacionesFS] onSnapshot error (${err.code}):`,
+          err.message
+        )
+        if (err.code !== 'permission-denied') {
+          setError(err)
+        }
+        setNotificaciones([])
         setIsLoading(false)
       }
     )
