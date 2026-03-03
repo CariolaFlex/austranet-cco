@@ -20,7 +20,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/lib';
 import { Badge } from '@/components/ui/badge';
 import { Input, Textarea, FormField, Select } from '@/components/ui/input';
-import { entidadCreateSchema, type EntidadCreateFormData } from '@/lib/validations/entidad.schema';
+import { entidadCreateBaseSchema, type EntidadCreateFormData } from '@/lib/validations/entidad.schema';
 import { calcularNivelRiesgo } from '@/services/entidades.service';
 import { useCreateEntidad, useUpdateEntidad } from '@/hooks/useEntidades';
 import { ROUTES } from '@/constants';
@@ -312,7 +312,10 @@ export function EntidadForm({ mode, entidad }: EntidadFormProps) {
     getValues,
     formState: { errors },
   } = useForm<EntidadCreateFormData>({
-    resolver: zodResolver(entidadCreateSchema),
+    // Usar schema BASE (ZodObject) — NO el refine (ZodEffects).
+    // ZodEffects + trigger() parcial causa fallos con Zod 3.25 + zodResolver.
+    // La validación NDA cross-field se maneja en onSubmit.
+    resolver: zodResolver(entidadCreateBaseSchema),
     defaultValues: buildDefaultValues(),
     mode: 'onBlur',
   });
@@ -375,46 +378,51 @@ export function EntidadForm({ mode, entidad }: EntidadFormProps) {
   const camposStep2: (keyof EntidadCreateFormData)[] = ['stakeholders'];
 
   const irSiguiente = async () => {
-    setStepError(null);
-    const camposAValidar = paso === 1 ? camposStep1 : paso === 2 ? camposStep2 : [];
-    const valido = camposAValidar.length > 0 ? await trigger(camposAValidar) : true;
+    try {
+      setStepError(null);
+      const camposAValidar = paso === 1 ? camposStep1 : paso === 2 ? camposStep2 : [];
+      const valido = camposAValidar.length > 0 ? await trigger(camposAValidar) : true;
 
-    if (!valido) {
-      // Mostrar mensaje de error visible indicando qué falta
-      const mensajes: string[] = [];
-      if (paso === 1) {
-        if (errors.tipo) mensajes.push('tipo de entidad');
-        if (errors.razonSocial) mensajes.push('razón social');
-        if (errors.rut) mensajes.push('RUT');
-        if (errors.sector) mensajes.push('sector');
-        if (errors.pais) mensajes.push('país');
-      } else if (paso === 2) {
-        if (errors.stakeholders?.root || errors.stakeholders?.message) {
-          mensajes.push('al menos un stakeholder');
+      if (!valido) {
+        const mensajes: string[] = [];
+        if (paso === 1) {
+          if (errors.tipo) mensajes.push('tipo de entidad');
+          if (errors.razonSocial) mensajes.push('razón social');
+          if (errors.rut) mensajes.push('RUT');
+          if (errors.sector) mensajes.push('sector');
+          if (errors.pais) mensajes.push('país');
+        } else if (paso === 2) {
+          if (errors.stakeholders?.root || errors.stakeholders?.message) {
+            mensajes.push('al menos un stakeholder');
+          }
+          const stErrors = errors.stakeholders;
+          if (Array.isArray(stErrors)) {
+            stErrors.forEach((se, i) => {
+              if (se) {
+                const campos = Object.keys(se).join(', ');
+                mensajes.push(`stakeholder ${i + 1}: ${campos}`);
+              }
+            });
+          }
         }
-        // Check individual stakeholder errors
-        const stErrors = errors.stakeholders;
-        if (Array.isArray(stErrors)) {
-          stErrors.forEach((se, i) => {
-            if (se) {
-              const campos = Object.keys(se).join(', ');
-              mensajes.push(`stakeholder ${i + 1}: ${campos}`);
-            }
-          });
-        }
+        setStepError(
+          mensajes.length > 0
+            ? `Corrige los siguientes campos antes de continuar: ${mensajes.join('; ')}`
+            : 'Hay errores de validación. Revisa los campos marcados en rojo.'
+        );
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+        return;
       }
-      setStepError(
-        mensajes.length > 0
-          ? `Corrige los siguientes campos antes de continuar: ${mensajes.join('; ')}`
-          : 'Hay errores de validación. Revisa los campos marcados en rojo.'
-      );
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-      return;
-    }
 
-    // Persistir antes de avanzar
-    persistState();
-    setPaso((p) => Math.min(p + 1, TOTAL_PASOS));
+      // Persistir antes de avanzar
+      persistState();
+      setPaso((p) => Math.min(p + 1, TOTAL_PASOS));
+    } catch (err) {
+      // Capturar cualquier error inesperado del resolver/trigger para
+      // evitar que el componente se desmonte silenciosamente.
+      console.error('[EntidadForm] Error en irSiguiente:', err);
+      setStepError('Error inesperado al validar. Intente nuevamente.');
+    }
   };
 
   const irAnterior = () => {
@@ -440,6 +448,13 @@ export function EntidadForm({ mode, entidad }: EntidadFormProps) {
   const onSubmit = async (data: EntidadCreateFormData) => {
     try {
       setSubmitError(null);
+
+      // Validación cross-field NDA (equivale al .refine() que quitamos del resolver)
+      if (data.tieneNDA === true && !data.fechaNDA) {
+        setSubmitError('Si tiene NDA, debe indicar la fecha de firma.');
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+        return;
+      }
 
       // Calcular nivelRiesgo final si se completó evaluación
       if (data.respuestasFactibilidad) {

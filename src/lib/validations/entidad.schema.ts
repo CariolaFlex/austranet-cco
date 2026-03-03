@@ -56,8 +56,10 @@ export const entidadBaseSchema = z.object({
   sitioWeb: z.string().url('URL inválida').optional().or(z.literal('')),
 });
 
-// Schema sin refine para poder llamar .partial()
-const entidadCreateBaseSchema = entidadBaseSchema.extend({
+// Schema base sin refine — usar para zodResolver en forms multi-paso.
+// El .refine() produce ZodEffects que causa problemas con trigger() parcial
+// en zodResolver + Zod 3.25.x. Las validaciones cross-field van en onSubmit.
+export const entidadCreateBaseSchema = entidadBaseSchema.extend({
   stakeholders: z.array(stakeholderSchema).min(1, 'Debe agregar al menos un stakeholder'),
   respuestasFactibilidad: respuestasFactibilidadSchema.optional(),
   tieneNDA: z.boolean().default(false),
@@ -88,7 +90,9 @@ export const filtrosEntidadSchema = z.object({
   busqueda: z.string().optional(),
 });
 
-export type EntidadCreateFormData = z.infer<typeof entidadCreateSchema>;
+// Tipo derivado del schema BASE (sin refine). El refine no cambia el shape,
+// solo agrega una validación runtime que se maneja manualmente en onSubmit.
+export type EntidadCreateFormData = z.infer<typeof entidadCreateBaseSchema>;
 export type EntidadUpdateFormData = z.infer<typeof entidadUpdateSchema>;
 export type StakeholderFormData = z.infer<typeof stakeholderSchema>;
 export type FiltrosFormData = z.infer<typeof filtrosEntidadSchema>;
