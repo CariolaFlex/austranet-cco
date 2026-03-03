@@ -104,12 +104,13 @@ service cloud.firestore {
     // T-02 — Notificaciones
     // --------------------------------------------------------
     match /notificaciones/{docId} {
-      // DEV: allow read/write para todos los autenticados.
-      // La regla granular con resource.data.destinatarios falla en queries
-      // de colección porque Firestore no puede evaluar resource.data a nivel
-      // de colección (solo a nivel de documento). Simplificamos para desarrollo.
-      // TODO: en producción, restaurar regla granular con get() o claims.
-      allow read, write: if isAuthenticated();
+      // resource == null permite queries de colección (Firestore no puede evaluar
+      // resource.data en ese contexto). En lecturas de documento individual,
+      // resource.data.destinatarios restringe al destinatario correcto.
+      allow read: if isAuthenticated() && (resource == null || request.auth.uid in resource.data.destinatarios);
+      allow create: if isAuthenticated();
+      allow update: if isAuthenticated() && (resource == null || request.auth.uid in resource.data.destinatarios);
+      allow delete: if false;
     }
 
     // --------------------------------------------------------

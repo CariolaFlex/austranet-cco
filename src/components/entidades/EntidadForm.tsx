@@ -258,7 +258,7 @@ export function EntidadForm({ mode, entidad }: EntidadFormProps) {
   const router = useRouter();
   const TOTAL_PASOS = 3;
   const storageKey = getStorageKey(entidad?.id);
-  const savedState = useRef(loadWizardState(storageKey));
+  const savedState = useRef(mode === 'create' ? null : loadWizardState(storageKey));
   const [restoredFromStorage, setRestoredFromStorage] = useState(false);
 
   const [paso, setPaso] = useState(() => savedState.current?.paso ?? 1);
