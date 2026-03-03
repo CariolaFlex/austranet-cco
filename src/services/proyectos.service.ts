@@ -19,7 +19,7 @@ import {
 import { v4 as uuidv4 } from 'uuid'
 import { getFirestoreDb, convertTimestamps, removeUndefined } from '@/lib/firebase/firestore'
 import { getFirebaseAuth } from '@/lib/firebase/auth'
-import { entidadesService, calcularNivelCompletitud } from '@/services/entidades.service'
+import { entidadesService } from '@/services/entidades.service'
 import { repositorioConfiguracionService } from '@/services/repositorio-configuracion.service'
 import { alcanceService } from '@/services/alcance.service'
 import type {
@@ -84,20 +84,10 @@ function docToProyecto(id: string, data: Record<string, unknown>): Proyecto {
  * Lanza error si no cumple, para bloquear la creación del proyecto.
  */
 export async function validarEntidadEstandar(entidadId: string): Promise<void> {
+  // MVP: solo valida existencia y estado activo. Sin restricción de nivel.
   const entidad = await entidadesService.getById(entidadId)
   if (!entidad) throw new Error('La entidad cliente no existe en el sistema')
   if (entidad.estado !== 'activo') throw new Error('La entidad cliente no está activa')
-
-  const glosarioCount = await entidadesService.glosario.getCount(entidadId)
-  const nivel = calcularNivelCompletitud(entidad, glosarioCount)
-
-  if (nivel === 'minimo') {
-    throw new Error(
-      `La entidad "${entidad.razonSocial}" está en NIVEL MÍNIMO de completitud. ` +
-      'Para crear un proyecto necesita al menos NIVEL ESTÁNDAR: ' +
-      '2+ stakeholders con influencia, evaluación de factibilidad completada y 5+ términos en glosario.'
-    )
-  }
 }
 
 // -------------------------------------------------------
