@@ -20,8 +20,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/lib';
 import { Badge } from '@/components/ui/badge';
 import { Input, Textarea, FormField, Select } from '@/components/ui/input';
-import { z } from 'zod';
-import { entidadCreateBaseSchema, stakeholderSchema, type EntidadCreateFormData } from '@/lib/validations/entidad.schema';
+import { entidadCreateBaseSchema, type EntidadCreateFormData } from '@/lib/validations/entidad.schema';
 import { calcularNivelRiesgo } from '@/services/entidades.service';
 import { useCreateEntidad, useUpdateEntidad } from '@/hooks/useEntidades';
 import { ROUTES } from '@/constants';
@@ -318,7 +317,7 @@ export function EntidadForm({ mode, entidad }: EntidadFormProps) {
     // La validación NDA cross-field se maneja en onSubmit.
     resolver: zodResolver(entidadCreateBaseSchema),
     defaultValues: buildDefaultValues(),
-    mode: 'onBlur',
+    mode: 'onChange',
   });
 
   const { fields, append, remove } = useFieldArray({ control, name: 'stakeholders' });
@@ -399,33 +398,16 @@ export function EntidadForm({ mode, entidad }: EntidadFormProps) {
           return;
         }
       } else if (paso === 2) {
-        // Bypass zodResolver/trigger for array fields — validate directly with Zod.
-        // trigger(['stakeholders']) + zodResolver is unreliable for array fields
-        // on zod 3.25+ / @hookform/resolvers 3.10+.
-        const currentStakeholders = getValues('stakeholders');
-        const stakeholdersArraySchema = z
-          .array(stakeholderSchema)
-          .min(1, 'Debe agregar al menos un stakeholder');
-        const resultado = stakeholdersArraySchema.safeParse(currentStakeholders);
-
-        if (!resultado.success) {
-          // Trigger RHF to show red field highlights (best-effort, ignore result)
-          trigger(['stakeholders']);
-
-          const mensajes: string[] = [];
-          for (const issue of resultado.error.issues) {
-            if (issue.path.length === 0) {
-              mensajes.push(issue.message);
-            } else {
-              const idx = typeof issue.path[0] === 'number' ? issue.path[0] : 0;
-              const campo = issue.path.slice(1).join('.');
-              mensajes.push(`Stakeholder ${idx + 1}: ${campo} — ${issue.message}`);
-            }
-          }
+        // Validate stakeholders directly from form state.
+        // trigger(['stakeholders']) + zodResolver is unreliable with useFieldArray.
+        const stks = getValues('stakeholders');
+        const hayStakeholderValido =
+          Array.isArray(stks) &&
+          stks.length > 0 &&
+          stks.some((s) => s.nombre?.trim() && s.cargo?.trim() && s.email?.trim());
+        if (!hayStakeholderValido) {
           setStepError(
-            mensajes.length > 0
-              ? `Corrige los siguientes campos antes de continuar: ${mensajes.join('; ')}`
-              : 'Hay errores en los stakeholders. Revisa los campos marcados en rojo.'
+            'Agrega al menos un stakeholder con nombre, cargo y email completos.'
           );
           window.scrollTo({ top: 0, behavior: 'smooth' });
           return;
@@ -477,8 +459,12 @@ export function EntidadForm({ mode, entidad }: EntidadFormProps) {
         data.nivelRiesgo = calcularNivelRiesgo(data.respuestasFactibilidad as RespuestasFactibilidad);
       }
 
-      // Ensure stakeholders have IDs (service also handles this, but be explicit)
-      const stakeholdersConId = (data.stakeholders ?? []).map((s) => ({
+      // Ensure stakeholders are never undefined — fallback to getValues if the resolver
+      // didn't parse them (can happen when mode: 'onChange' and focus never left a field).
+      const stakeholdersRaw = data.stakeholders?.length
+        ? data.stakeholders
+        : getValues('stakeholders') ?? [];
+      const stakeholdersConId = stakeholdersRaw.map((s) => ({
         ...s,
         id: s.id ?? uuidv4(),
       }));
