@@ -56,7 +56,9 @@ export function useCreateEntidad() {
       // Pre-popular el caché individual con la entidad recién creada.
       // La página de detalle monta con staleTime:0, pero esto evita una
       // pantalla de loading innecesaria si la query se hidrata antes de la nav.
-      qc.setQueryData(['entidades', entidad.id], entidad);
+      // Eliminar el caché individual para forzar fetch fresco desde Firestore en la página de detalle.
+      // Evita que datos incompletos del momento de creación persistan en caché.
+      qc.removeQueries({ queryKey: ['entidades', entidad.id] });
       // Invalidar la lista para que se refresque en segundo plano.
       qc.invalidateQueries({ queryKey: ['entidades'] });
       toast.success(`Entidad "${entidad.razonSocial}" creada correctamente`);

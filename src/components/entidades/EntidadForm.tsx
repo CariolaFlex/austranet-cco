@@ -298,7 +298,7 @@ export function EntidadForm({ mode, entidad }: EntidadFormProps) {
       notas: saved?.notas ?? entidad?.notas ?? '',
       nivelRiesgo: saved?.nivelRiesgo ?? entidad?.nivelRiesgo ?? 'bajo',
       estado: saved?.estado ?? entidad?.estado ?? 'activo',
-      respuestasFactibilidad: saved?.respuestasFactibilidad ?? entidad?.respuestasFactibilidad ?? undefined,
+      respuestasFactibilidad: mode === 'create' ? undefined : (saved?.respuestasFactibilidad ?? entidad?.respuestasFactibilidad ?? undefined),
     };
   }, [entidad]);
 
@@ -446,6 +446,8 @@ export function EntidadForm({ mode, entidad }: EntidadFormProps) {
   const handleFinalSubmit = async () => {
     // Prevenir doble-submit durante una mutación activa
     if (isLoading) return;
+    // Blindaje extra: sólo puede ejecutarse desde el Paso 3 (final)
+    if (paso !== TOTAL_PASOS) return;
 
     try {
       setSubmitError(null);
@@ -531,11 +533,9 @@ export function EntidadForm({ mode, entidad }: EntidadFormProps) {
     <form
       noValidate
       onSubmit={(e) => {
-        // Siempre prevenir el submit nativo del browser.
-        // En pasos no finales ignorar (los botones son type="button").
-        // En el Paso 3, el botón "Crear entidad" es type="submit" — ejecutar handleFinalSubmit.
         e.preventDefault();
-        if (paso < TOTAL_PASOS) return;
+        e.stopPropagation();
+        if (paso !== TOTAL_PASOS) return;
         void handleFinalSubmit();
       }}
       className="space-y-6"
