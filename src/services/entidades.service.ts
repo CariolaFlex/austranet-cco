@@ -235,6 +235,8 @@ export const entidadesService = {
 
   /** Crea una nueva entidad. El estado inicial siempre es 'activo'. */
   create: async (data: CrearEntidadDTO): Promise<Entidad> => {
+    // 🔍 DEBUG TEMPORAL
+  console.log('[create] stakeholders recibidos:', JSON.stringify(data.stakeholders, null, 2));
     const db = getFirestoreDb();
     const uid = getCurrentUserId();
     const userName = getCurrentUserName();
