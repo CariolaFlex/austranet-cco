@@ -530,16 +530,23 @@ export function EntidadForm({ mode, entidad }: EntidadFormProps) {
   // -------------------------------------------------------
 
   return (
-    <form
-      noValidate
-      onSubmit={(e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        if (paso !== TOTAL_PASOS) return;
-        void handleFinalSubmit();
-      }}
-      className="space-y-6"
-    >
+<form
+  noValidate
+  onKeyDown={(e) => {
+    if (e.key === 'Enter' && (e.target as HTMLElement).tagName !== 'TEXTAREA') {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+  }}
+  onSubmit={(e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (paso !== TOTAL_PASOS) return;
+    void handleFinalSubmit();
+  }}
+  className="space-y-6"
+>
+
       <StepIndicator paso={paso} totalPasos={TOTAL_PASOS} />
 
       {/* Banner de borrador restaurado */}
