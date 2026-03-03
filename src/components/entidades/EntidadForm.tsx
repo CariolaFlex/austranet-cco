@@ -20,7 +20,8 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/lib';
 import { Badge } from '@/components/ui/badge';
 import { Input, Textarea, FormField, Select } from '@/components/ui/input';
-import { entidadCreateBaseSchema, type EntidadCreateFormData } from '@/lib/validations/entidad.schema';
+import { z } from 'zod';
+import { entidadCreateBaseSchema, stakeholderSchema, type EntidadCreateFormData } from '@/lib/validations/entidad.schema';
 import { calcularNivelRiesgo } from '@/services/entidades.service';
 import { useCreateEntidad, useUpdateEntidad } from '@/hooks/useEntidades';
 import { ROUTES } from '@/constants';
@@ -375,51 +376,66 @@ export function EntidadForm({ mode, entidad }: EntidadFormProps) {
   const camposStep1: (keyof EntidadCreateFormData)[] = [
     'tipo', 'razonSocial', 'rut', 'sector', 'pais',
   ];
-  const camposStep2: (keyof EntidadCreateFormData)[] = ['stakeholders'];
 
   const irSiguiente = async () => {
     try {
       setStepError(null);
-      const camposAValidar = paso === 1 ? camposStep1 : paso === 2 ? camposStep2 : [];
-      const valido = camposAValidar.length > 0 ? await trigger(camposAValidar) : true;
 
-      if (!valido) {
-        const mensajes: string[] = [];
-        if (paso === 1) {
+      if (paso === 1) {
+        const valido = await trigger(camposStep1);
+        if (!valido) {
+          const mensajes: string[] = [];
           if (errors.tipo) mensajes.push('tipo de entidad');
           if (errors.razonSocial) mensajes.push('razón social');
           if (errors.rut) mensajes.push('RUT');
           if (errors.sector) mensajes.push('sector');
           if (errors.pais) mensajes.push('país');
-        } else if (paso === 2) {
-          if (errors.stakeholders?.root || errors.stakeholders?.message) {
-            mensajes.push('al menos un stakeholder');
-          }
-          const stErrors = errors.stakeholders;
-          if (Array.isArray(stErrors)) {
-            stErrors.forEach((se, i) => {
-              if (se) {
-                const campos = Object.keys(se).join(', ');
-                mensajes.push(`stakeholder ${i + 1}: ${campos}`);
-              }
-            });
-          }
+          setStepError(
+            mensajes.length > 0
+              ? `Corrige los siguientes campos antes de continuar: ${mensajes.join('; ')}`
+              : 'Hay errores de validación. Revisa los campos marcados en rojo.'
+          );
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+          return;
         }
-        setStepError(
-          mensajes.length > 0
-            ? `Corrige los siguientes campos antes de continuar: ${mensajes.join('; ')}`
-            : 'Hay errores de validación. Revisa los campos marcados en rojo.'
-        );
-        window.scrollTo({ top: 0, behavior: 'smooth' });
-        return;
+      } else if (paso === 2) {
+        // Bypass zodResolver/trigger for array fields — validate directly with Zod.
+        // trigger(['stakeholders']) + zodResolver is unreliable for array fields
+        // on zod 3.25+ / @hookform/resolvers 3.10+.
+        const currentStakeholders = getValues('stakeholders');
+        const stakeholdersArraySchema = z
+          .array(stakeholderSchema)
+          .min(1, 'Debe agregar al menos un stakeholder');
+        const resultado = stakeholdersArraySchema.safeParse(currentStakeholders);
+
+        if (!resultado.success) {
+          // Trigger RHF to show red field highlights (best-effort, ignore result)
+          trigger(['stakeholders']);
+
+          const mensajes: string[] = [];
+          for (const issue of resultado.error.issues) {
+            if (issue.path.length === 0) {
+              mensajes.push(issue.message);
+            } else {
+              const idx = typeof issue.path[0] === 'number' ? issue.path[0] : 0;
+              const campo = issue.path.slice(1).join('.');
+              mensajes.push(`Stakeholder ${idx + 1}: ${campo} — ${issue.message}`);
+            }
+          }
+          setStepError(
+            mensajes.length > 0
+              ? `Corrige los siguientes campos antes de continuar: ${mensajes.join('; ')}`
+              : 'Hay errores en los stakeholders. Revisa los campos marcados en rojo.'
+          );
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+          return;
+        }
       }
 
-      // Persistir antes de avanzar
+      // Validation passed — persist and advance
       persistState();
       setPaso((p) => Math.min(p + 1, TOTAL_PASOS));
     } catch (err) {
-      // Capturar cualquier error inesperado del resolver/trigger para
-      // evitar que el componente se desmonte silenciosamente.
       console.error('[EntidadForm] Error en irSiguiente:', err);
       setStepError('Error inesperado al validar. Intente nuevamente.');
     }
@@ -492,7 +508,18 @@ export function EntidadForm({ mode, entidad }: EntidadFormProps) {
   // -------------------------------------------------------
 
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+    <form
+      onSubmit={(e) => {
+        // Prevent Enter-key (or accidental) form submission on non-final steps.
+        // Only the last step has the real submit button.
+        if (paso < TOTAL_PASOS) {
+          e.preventDefault();
+          return;
+        }
+        handleSubmit(onSubmit)(e);
+      }}
+      className="space-y-6"
+    >
       <StepIndicator paso={paso} totalPasos={TOTAL_PASOS} />
 
       {/* Banner de borrador restaurado */}
