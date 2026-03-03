@@ -161,6 +161,24 @@ function docToEntidad(id: string, data: Record<string, unknown>): Entidad {
   if (!Array.isArray(converted.stakeholders)) {
     converted.stakeholders = [];
   }
+  // Normalizar stakeholders: asegurar que todos los campos requeridos existen
+  // con valores por defecto. Documentos creados antes del Sprint 1C pueden
+  // tener campos faltantes (nivelInfluencia, nivelInteres, id, etc.).
+  converted.stakeholders = converted.stakeholders.map((s) => ({
+    id: s.id || uuidv4(),
+    nombre: s.nombre || '',
+    cargo: s.cargo || '',
+    email: s.email || '',
+    telefono: s.telefono || '',
+    rol: s.rol || 'usuario_final',
+    nivelInfluencia: s.nivelInfluencia || 'medio',
+    nivelInteres: s.nivelInteres || 'medio',
+    canalComunicacion: s.canalComunicacion || '',
+  }));
+  // Normalizar campos de nivel superior que pueden faltar
+  if (!converted.estado) converted.estado = 'activo';
+  if (!converted.nivelRiesgo) converted.nivelRiesgo = 'bajo';
+  if (!converted.tipo) converted.tipo = 'cliente';
   return converted;
 }
 
@@ -187,6 +205,12 @@ export const entidadesService = {
     const q = query(collection(db, COLECCION), ...constraints);
     const snapshot = await getDocs(q);
     let entidades = snapshot.docs.map((d) => docToEntidad(d.id, d.data()));
+
+    // Por defecto excluir entidades inactivas (soft-deleted).
+    // Solo se muestran si el usuario filtró explícitamente por estado='inactivo'.
+    if (!filtros?.estado) {
+      entidades = entidades.filter((e) => e.estado !== 'inactivo');
+    }
 
     if (filtros?.busqueda?.trim()) {
       const busq = filtros.busqueda.toLowerCase();
@@ -353,9 +377,52 @@ export const entidadesService = {
   /**
    * Soft delete: cambia estado a 'inactivo'.
    * NO elimina el documento de Firestore (M1-06 §8 — política de control de configuración).
+   * Robusto: funciona aunque el documento tenga campos faltantes o estructura incompleta.
    */
   delete: async (id: string): Promise<void> => {
-    await entidadesService.updateEstado(id, 'inactivo', 'Entidad eliminada por el usuario');
+    const db = getFirestoreDb();
+    const uid = getCurrentUserId();
+    const userName = getCurrentUserName();
+
+    // Actualizar estado directamente sin depender de getById
+    try {
+      await updateDoc(doc(db, COLECCION, id), {
+        estado: 'inactivo' as EstadoEntidad,
+        actualizadoEn: Timestamp.now(),
+      });
+    } catch (err) {
+      throw new Error(
+        `No se pudo desactivar la entidad: ${err instanceof Error ? err.message : 'Error desconocido'}`
+      );
+    }
+
+    // Registrar historial (no-crítico: si falla, la entidad ya fue desactivada)
+    try {
+      await registrarHistorial(id, {
+        usuarioId: uid,
+        usuarioNombre: userName,
+        tipoAccion: 'cambio_estado',
+        campoModificado: 'estado',
+        valorNuevo: 'inactivo',
+        motivo: 'Entidad eliminada por el usuario',
+      });
+    } catch {
+      // Silencioso: el historial es secundario, la operación principal ya se completó
+    }
+
+    // Auditoría T-03 (silencioso)
+    try {
+      const { auditoriaService } = await import('./auditoria.service');
+      const fbUser = getFirebaseAuth().currentUser;
+      if (fbUser) await auditoriaService.registrar({
+        actor: { uid: fbUser.uid, nombre: fbUser.displayName ?? fbUser.email ?? 'Sistema', rol: 'analista' },
+        accion: 'ENTIDAD_ELIMINADA',
+        modulo: 'M1',
+        entidad: { id, tipo: 'Entidad' },
+        descripcion: 'Entidad desactivada (soft delete)',
+        resultado: 'exito',
+      });
+    } catch { /* silencioso */ }
   },
 
   // Re-exportar para uso externo en componentes

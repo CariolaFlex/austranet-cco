@@ -3,20 +3,25 @@
 // ============================================================
 // COMPONENTE: EntidadForm — Wizard 3 pasos (Módulo 1 Sprint 1C)
 // Paso 1: Datos básicos | Paso 2: Stakeholders | Paso 3: Evaluación
+//
+// Incluye:
+// - Normalización de datos incompletos de Firestore en defaultValues
+// - Persistencia del progreso en localStorage (Problema 2)
+// - Feedback visible de errores de validación por paso
 // ============================================================
 
-import { useState } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useForm, useFieldArray, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { v4 as uuidv4 } from 'uuid';
-import { Plus, Trash2, CheckCircle, ChevronRight, ChevronLeft, User } from 'lucide-react';
+import { Plus, Trash2, CheckCircle, ChevronRight, ChevronLeft, User, AlertCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/lib';
 import { Badge } from '@/components/ui/badge';
 import { Input, Textarea, FormField, Select } from '@/components/ui/input';
 import { entidadCreateSchema, type EntidadCreateFormData } from '@/lib/validations/entidad.schema';
-import { calcularNivelRiesgo, calcularNivelCompletitud } from '@/services/entidades.service';
+import { calcularNivelRiesgo } from '@/services/entidades.service';
 import { useCreateEntidad, useUpdateEntidad } from '@/hooks/useEntidades';
 import { ROUTES } from '@/constants';
 import type { Entidad, RespuestasFactibilidad } from '@/types';
@@ -104,6 +109,92 @@ const COMPLETITUD_COLOR: Record<string, string> = {
 };
 
 // -------------------------------------------------------
+// PERSISTENCIA LOCALSTORAGE
+// -------------------------------------------------------
+
+const STORAGE_PREFIX = 'cco_wizard_entidad_';
+
+function getStorageKey(entidadId?: string): string {
+  return `${STORAGE_PREFIX}${entidadId || 'nueva'}`;
+}
+
+function saveWizardState(
+  key: string,
+  data: { paso: number; formData: Partial<EntidadCreateFormData> }
+): void {
+  try {
+    // Serializar fechas como strings ISO para localStorage
+    const serializable = JSON.parse(JSON.stringify(data, (_, v) =>
+      v instanceof Date ? v.toISOString() : v
+    ));
+    localStorage.setItem(key, JSON.stringify(serializable));
+  } catch {
+    // Silencioso: localStorage puede no estar disponible
+  }
+}
+
+function loadWizardState(
+  key: string
+): { paso: number; formData: Partial<EntidadCreateFormData> } | null {
+  try {
+    const raw = localStorage.getItem(key);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    // Restaurar fechas
+    if (parsed.formData?.fechaNDA && typeof parsed.formData.fechaNDA === 'string') {
+      parsed.formData.fechaNDA = new Date(parsed.formData.fechaNDA);
+    }
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+function clearWizardState(key: string): void {
+  try {
+    localStorage.removeItem(key);
+  } catch {
+    // Silencioso
+  }
+}
+
+// -------------------------------------------------------
+// HELPER: Crear stakeholder con todos los campos requeridos
+// -------------------------------------------------------
+
+function crearStakeholderVacio() {
+  return {
+    id: uuidv4(),
+    nombre: '',
+    cargo: '',
+    email: '',
+    telefono: '',
+    rol: 'usuario_final' as const,
+    nivelInfluencia: 'medio' as const,
+    nivelInteres: 'medio' as const,
+    canalComunicacion: '',
+  };
+}
+
+/**
+ * Normaliza un stakeholder de Firestore asegurando que todos los campos
+ * requeridos por el schema Zod existan con valores válidos.
+ */
+function normalizarStakeholder(s: Record<string, unknown>) {
+  return {
+    id: (s.id as string) || uuidv4(),
+    nombre: (s.nombre as string) || '',
+    cargo: (s.cargo as string) || '',
+    email: (s.email as string) || '',
+    telefono: (s.telefono as string) || '',
+    rol: (s.rol as EntidadCreateFormData['stakeholders'][0]['rol']) || 'usuario_final',
+    nivelInfluencia: (s.nivelInfluencia as EntidadCreateFormData['stakeholders'][0]['nivelInfluencia']) || 'medio',
+    nivelInteres: (s.nivelInteres as EntidadCreateFormData['stakeholders'][0]['nivelInteres']) || 'medio',
+    canalComunicacion: (s.canalComunicacion as string) || '',
+  };
+}
+
+// -------------------------------------------------------
 // INDICADOR DE PASOS
 // -------------------------------------------------------
 
@@ -166,34 +257,51 @@ interface EntidadFormProps {
 
 export function EntidadForm({ mode, entidad }: EntidadFormProps) {
   const router = useRouter();
-  const [paso, setPaso] = useState(1);
   const TOTAL_PASOS = 3;
+  const storageKey = getStorageKey(entidad?.id);
+  const savedState = useRef(loadWizardState(storageKey));
+  const [restoredFromStorage, setRestoredFromStorage] = useState(false);
+
+  const [paso, setPaso] = useState(() => savedState.current?.paso ?? 1);
+  const [stepError, setStepError] = useState<string | null>(null);
 
   const { mutateAsync: crearEntidad, isPending: isCreating } = useCreateEntidad();
   const { mutateAsync: actualizarEntidad, isPending: isUpdating } = useUpdateEntidad();
   const isLoading = isCreating || isUpdating;
   const [submitError, setSubmitError] = useState<string | null>(null);
 
-  const defaultValues: Partial<EntidadCreateFormData> = {
-    tipo: entidad?.tipo ?? 'cliente',
-    razonSocial: entidad?.razonSocial ?? '',
-    nombreComercial: entidad?.nombreComercial ?? '',
-    rut: entidad?.rut ?? '',
-    sector: entidad?.sector ?? undefined,
-    pais: entidad?.pais ?? 'Chile',
-    ciudad: entidad?.ciudad ?? '',
-    direccion: entidad?.direccion ?? '',
-    sitioWeb: entidad?.sitioWeb ?? '',
-    stakeholders: entidad?.stakeholders?.length
-      ? (entidad.stakeholders as EntidadCreateFormData['stakeholders'])
-      : [{ id: uuidv4(), nombre: '', cargo: '', email: '', telefono: '', rol: 'usuario_final' as const, nivelInfluencia: 'medio' as const, nivelInteres: 'medio' as const, canalComunicacion: '' }],
-    tieneNDA: entidad?.tieneNDA ?? false,
-    fechaNDA: entidad?.fechaNDA ?? undefined,
-    notas: entidad?.notas ?? '',
-    nivelRiesgo: entidad?.nivelRiesgo ?? 'bajo',
-    estado: entidad?.estado ?? 'activo',
-    respuestasFactibilidad: entidad?.respuestasFactibilidad ?? undefined,
-  };
+  // Construir defaultValues con normalización robusta de stakeholders
+  const buildDefaultValues = useCallback((): Partial<EntidadCreateFormData> => {
+    // Si hay datos guardados en localStorage, usarlos como base
+    const saved = savedState.current?.formData;
+
+    const stakeholdersFromEntity = entidad?.stakeholders?.length
+      ? entidad.stakeholders.map((s) => normalizarStakeholder(s as unknown as Record<string, unknown>))
+      : [crearStakeholderVacio()];
+
+    const stakeholdersFromSaved = saved?.stakeholders?.length
+      ? saved.stakeholders.map((s) => normalizarStakeholder(s as unknown as Record<string, unknown>))
+      : null;
+
+    return {
+      tipo: saved?.tipo ?? entidad?.tipo ?? 'cliente',
+      razonSocial: saved?.razonSocial ?? entidad?.razonSocial ?? '',
+      nombreComercial: saved?.nombreComercial ?? entidad?.nombreComercial ?? '',
+      rut: saved?.rut ?? entidad?.rut ?? '',
+      sector: saved?.sector ?? entidad?.sector ?? undefined,
+      pais: saved?.pais ?? entidad?.pais ?? 'Chile',
+      ciudad: saved?.ciudad ?? entidad?.ciudad ?? '',
+      direccion: saved?.direccion ?? entidad?.direccion ?? '',
+      sitioWeb: saved?.sitioWeb ?? entidad?.sitioWeb ?? '',
+      stakeholders: stakeholdersFromSaved ?? stakeholdersFromEntity,
+      tieneNDA: saved?.tieneNDA ?? entidad?.tieneNDA ?? false,
+      fechaNDA: saved?.fechaNDA ?? entidad?.fechaNDA ?? undefined,
+      notas: saved?.notas ?? entidad?.notas ?? '',
+      nivelRiesgo: saved?.nivelRiesgo ?? entidad?.nivelRiesgo ?? 'bajo',
+      estado: saved?.estado ?? entidad?.estado ?? 'activo',
+      respuestasFactibilidad: saved?.respuestasFactibilidad ?? entidad?.respuestasFactibilidad ?? undefined,
+    };
+  }, [entidad]);
 
   const {
     register,
@@ -201,21 +309,39 @@ export function EntidadForm({ mode, entidad }: EntidadFormProps) {
     watch,
     control,
     trigger,
+    getValues,
     formState: { errors },
-    setValue,
   } = useForm<EntidadCreateFormData>({
     resolver: zodResolver(entidadCreateSchema),
-    defaultValues,
+    defaultValues: buildDefaultValues(),
     mode: 'onBlur',
   });
 
   const { fields, append, remove } = useFieldArray({ control, name: 'stakeholders' });
+
+  // Notificar al usuario si se restauró desde localStorage
+  useEffect(() => {
+    if (savedState.current && !restoredFromStorage) {
+      setRestoredFromStorage(true);
+    }
+  }, [restoredFromStorage]);
 
   // Watch values for live preview
   const watchedTieneNDA = watch('tieneNDA');
   const watchedRespuestas = watch('respuestasFactibilidad');
   const watchedStakeholders = watch('stakeholders');
   const watchedFields = watch(['tipo', 'razonSocial', 'rut', 'sector', 'pais']);
+
+  // Guardar estado en localStorage al cambiar de paso o al modificar el formulario
+  const persistState = useCallback(() => {
+    const currentData = getValues();
+    saveWizardState(storageKey, { paso, formData: currentData });
+  }, [storageKey, paso, getValues]);
+
+  // Persistir al cambiar de paso
+  useEffect(() => {
+    persistState();
+  }, [paso, persistState]);
 
   // Calcular nivel de riesgo en tiempo real (Paso 3)
   const nivelRiesgoCalc =
@@ -249,12 +375,63 @@ export function EntidadForm({ mode, entidad }: EntidadFormProps) {
   const camposStep2: (keyof EntidadCreateFormData)[] = ['stakeholders'];
 
   const irSiguiente = async () => {
+    setStepError(null);
     const camposAValidar = paso === 1 ? camposStep1 : paso === 2 ? camposStep2 : [];
     const valido = camposAValidar.length > 0 ? await trigger(camposAValidar) : true;
-    if (valido) setPaso((p) => Math.min(p + 1, TOTAL_PASOS));
+
+    if (!valido) {
+      // Mostrar mensaje de error visible indicando qué falta
+      const mensajes: string[] = [];
+      if (paso === 1) {
+        if (errors.tipo) mensajes.push('tipo de entidad');
+        if (errors.razonSocial) mensajes.push('razón social');
+        if (errors.rut) mensajes.push('RUT');
+        if (errors.sector) mensajes.push('sector');
+        if (errors.pais) mensajes.push('país');
+      } else if (paso === 2) {
+        if (errors.stakeholders?.root || errors.stakeholders?.message) {
+          mensajes.push('al menos un stakeholder');
+        }
+        // Check individual stakeholder errors
+        const stErrors = errors.stakeholders;
+        if (Array.isArray(stErrors)) {
+          stErrors.forEach((se, i) => {
+            if (se) {
+              const campos = Object.keys(se).join(', ');
+              mensajes.push(`stakeholder ${i + 1}: ${campos}`);
+            }
+          });
+        }
+      }
+      setStepError(
+        mensajes.length > 0
+          ? `Corrige los siguientes campos antes de continuar: ${mensajes.join('; ')}`
+          : 'Hay errores de validación. Revisa los campos marcados en rojo.'
+      );
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      return;
+    }
+
+    // Persistir antes de avanzar
+    persistState();
+    setPaso((p) => Math.min(p + 1, TOTAL_PASOS));
   };
 
-  const irAnterior = () => setPaso((p) => Math.max(p - 1, 1));
+  const irAnterior = () => {
+    setStepError(null);
+    persistState();
+    setPaso((p) => Math.max(p - 1, 1));
+  };
+
+  const handleCancel = () => {
+    clearWizardState(storageKey);
+    router.back();
+  };
+
+  const handleDiscardDraft = () => {
+    clearWizardState(storageKey);
+    window.location.reload();
+  };
 
   // -------------------------------------------------------
   // SUBMIT
@@ -279,10 +456,12 @@ export function EntidadForm({ mode, entidad }: EntidadFormProps) {
       if (mode === 'create') {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const nueva = await crearEntidad(payload as any);
+        clearWizardState(storageKey);
         router.push(ROUTES.ENTIDAD_DETALLE(nueva.id));
       } else if (entidad) {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         await actualizarEntidad({ id: entidad.id, data: payload as any });
+        clearWizardState(storageKey);
         router.push(ROUTES.ENTIDAD_DETALLE(entidad.id));
       }
     } catch (err) {
@@ -300,6 +479,30 @@ export function EntidadForm({ mode, entidad }: EntidadFormProps) {
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
       <StepIndicator paso={paso} totalPasos={TOTAL_PASOS} />
+
+      {/* Banner de borrador restaurado */}
+      {restoredFromStorage && (
+        <div className="rounded-md bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800 px-4 py-3 text-sm text-blue-800 dark:text-blue-300 flex items-center justify-between">
+          <span>Se restauró un borrador guardado previamente.</span>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="text-blue-700 dark:text-blue-400 hover:text-blue-900"
+            onClick={handleDiscardDraft}
+          >
+            Descartar borrador
+          </Button>
+        </div>
+      )}
+
+      {/* Error de validación por paso */}
+      {stepError && (
+        <div className="rounded-md bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 px-4 py-3 text-sm text-amber-800 dark:text-amber-300 flex items-start gap-2">
+          <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
+          <span>{stepError}</span>
+        </div>
+      )}
 
       {/* Error de envío */}
       {submitError && (
@@ -419,19 +622,7 @@ export function EntidadForm({ mode, entidad }: EntidadFormProps) {
                   type="button"
                   variant="outline"
                   size="sm"
-                  onClick={() =>
-                    append({
-                      id: uuidv4(),
-                      nombre: '',
-                      cargo: '',
-                      email: '',
-                      telefono: '',
-                      rol: 'usuario_final',
-                      nivelInfluencia: 'medio',
-                      nivelInteres: 'medio',
-                      canalComunicacion: '',
-                    })
-                  }
+                  onClick={() => append(crearStakeholderVacio())}
                 >
                   <Plus className="h-4 w-4 mr-1.5" />
                   Agregar stakeholder
@@ -696,7 +887,7 @@ export function EntidadForm({ mode, entidad }: EntidadFormProps) {
         <Button
           type="button"
           variant="outline"
-          onClick={paso === 1 ? () => router.back() : irAnterior}
+          onClick={paso === 1 ? handleCancel : irAnterior}
         >
           <ChevronLeft className="h-4 w-4 mr-1.5" />
           {paso === 1 ? 'Cancelar' : 'Anterior'}
