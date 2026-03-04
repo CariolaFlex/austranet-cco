@@ -4,144 +4,78 @@
 // COMPONENTE: EntidadForm — Wizard 3 pasos (Módulo 1 Sprint 1C)
 // Paso 1: Datos básicos | Paso 2: Stakeholders | Paso 3: Evaluación
 //
-// Incluye:
-// - Normalización de datos incompletos de Firestore en defaultValues
-// - Persistencia del progreso en localStorage (Problema 2)
-// - Feedback visible de errores de validación por paso
+// Arquitectura refactorizada (eliminación definitiva del submit prematuro):
+// - Cada paso es un componente independiente con su propio <form> + useForm.
+// - EntidadForm solo gestiona: paso activo, wizardData acumulado,
+//   localStorage y el submit final a Firebase.
+// - NINGÚN submit puede dispararse fuera del paso 3.
 // ============================================================
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { useForm, useFieldArray, Controller } from 'react-hook-form';
 import { v4 as uuidv4 } from 'uuid';
-import { Plus, Trash2, CheckCircle, ChevronRight, ChevronLeft, User, AlertCircle } from 'lucide-react';
+import { CheckCircle, AlertCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/lib';
-import { Badge } from '@/components/ui/badge';
-import { Input, Textarea, FormField, Select } from '@/components/ui/input';
-import { entidadBaseSchema, type EntidadCreateFormData } from '@/lib/validations/entidad.schema';
-import { calcularNivelRiesgo } from '@/services/entidades.service';
 import { useCreateEntidad, useUpdateEntidad } from '@/hooks/useEntidades';
+import { calcularNivelRiesgo } from '@/services/entidades.service';
 import { ROUTES } from '@/constants';
+import { WizardPaso1 } from './wizard/WizardPaso1';
+import { WizardPaso2 } from './wizard/WizardPaso2';
+import { WizardPaso3 } from './wizard/WizardPaso3';
+import type { Paso1Data } from './wizard/WizardPaso1';
+import type { Paso2Data } from './wizard/WizardPaso2';
+import type { Paso3Data } from './wizard/WizardPaso3';
 import type { Entidad, RespuestasFactibilidad } from '@/types';
 
 // -------------------------------------------------------
-// DATOS DE CONFIGURACIÓN (listas de opciones)
+// TIPOS INTERNOS
 // -------------------------------------------------------
 
-const TIPO_OPTIONS = [
-  { value: 'cliente', label: 'Cliente' },
-  { value: 'proveedor', label: 'Proveedor' },
-  { value: 'ambos', label: 'Cliente + Proveedor' },
-];
+interface WizardAccumulatedData {
+  paso1?: Paso1Data;
+  paso2?: Paso2Data;
+  paso3?: Partial<Paso3Data>; // draft (puede estar incompleto si el usuario volvió atrás)
+}
 
-const SECTOR_OPTIONS = [
-  { value: 'construccion', label: 'Construcción' },
-  { value: 'salud', label: 'Salud' },
-  { value: 'tecnologia', label: 'Tecnología' },
-  { value: 'educacion', label: 'Educación' },
-  { value: 'finanzas', label: 'Finanzas' },
-  { value: 'manufactura', label: 'Manufactura' },
-  { value: 'retail', label: 'Retail' },
-  { value: 'consultoria', label: 'Consultoría' },
-  { value: 'otro', label: 'Otro' },
-];
-
-const ROL_OPTIONS = [
-  { value: 'usuario_final', label: 'Usuario Final' },
-  { value: 'gerente_sistema', label: 'Gerente de Sistema' },
-  { value: 'propietario', label: 'Propietario / Sponsor' },
-  { value: 'responsable_tecnico', label: 'Responsable Técnico' },
-  { value: 'experto_dominio', label: 'Experto de Dominio' },
-  { value: 'regulador_externo', label: 'Regulador Externo' },
-  { value: 'administrador_negocio', label: 'Administrador de Negocio' },
-  { value: 'ti_mantenimiento', label: 'TI / Mantenimiento' },
-];
-
-const NIVEL_OPTIONS = [
-  { value: 'alto', label: 'Alto' },
-  { value: 'medio', label: 'Medio' },
-  { value: 'bajo', label: 'Bajo' },
-];
-
-// M1-04 §5.1 — Preguntas de factibilidad con pesos ponderados
-const PREGUNTAS_FACTIBILIDAD = [
-  {
-    categoria: 'Técnica (40%)',
-    preguntas: [
-      { key: 't1_sistemasDocumentados', label: '¿Los sistemas actuales están documentados?', opciones: [{ value: 'si', label: 'Sí' }, { value: 'parcial', label: 'Parcial' }, { value: 'no', label: 'No' }] },
-      { key: 't2_experienciaSoftware', label: '¿La organización tiene experiencia con software a medida?', opciones: [{ value: 'si', label: 'Sí' }, { value: 'no', label: 'No' }] },
-      { key: 't3_infraestructura', label: '¿Cuenta con infraestructura tecnológica adecuada?', opciones: [{ value: 'si', label: 'Sí' }, { value: 'parcial', label: 'Parcial' }, { value: 'no', label: 'No' }] },
-      { key: 't4_procesosDocumentados', label: '¿Los procesos de negocio están documentados?', opciones: [{ value: 'si', label: 'Sí' }, { value: 'parcial', label: 'Parcial' }, { value: 'no', label: 'No' }] },
-    ],
-  },
-  {
-    categoria: 'Económica (35%)',
-    preguntas: [
-      { key: 'e5_presupuesto', label: '¿Cuenta con presupuesto asignado para el proyecto?', opciones: [{ value: 'si', label: 'Sí' }, { value: 'en_proceso', label: 'En proceso' }, { value: 'no', label: 'No' }] },
-      { key: 'e6_decisoresAccesibles', label: '¿Los decisores financieros son accesibles?', opciones: [{ value: 'si', label: 'Sí' }, { value: 'no', label: 'No' }] },
-      { key: 'e7_presupuestoOperacion', label: '¿Existe presupuesto para operación continua?', opciones: [{ value: 'si', label: 'Sí' }, { value: 'parcial', label: 'Parcial' }, { value: 'no', label: 'No' }] },
-    ],
-  },
-  {
-    categoria: 'Organizacional (25%)',
-    preguntas: [
-      { key: 'o8_stakeholdersDisponibles', label: '¿Los stakeholders clave están disponibles?', opciones: [{ value: 'si', label: 'Sí' }, { value: 'parcial', label: 'Parcial' }, { value: 'no', label: 'No' }] },
-      { key: 'o9_patrocinadorEjecutivo', label: '¿Existe patrocinador ejecutivo del proyecto?', opciones: [{ value: 'si', label: 'Sí' }, { value: 'no', label: 'No' }] },
-      { key: 'o10_experienciaCambio', label: '¿La organización tiene experiencia en gestión del cambio?', opciones: [{ value: 'si', label: 'Sí' }, { value: 'parcial', label: 'Parcial' }, { value: 'no', label: 'No' }] },
-      { key: 'o11_alineacionEstrategica', label: '¿El proyecto está alineado estratégicamente?', opciones: [{ value: 'si', label: 'Sí' }, { value: 'no', label: 'No' }, { value: 'desconocido', label: 'Desconocido' }] },
-    ],
-  },
-];
-
-const NIVEL_RIESGO_COLOR: Record<string, string> = {
-  bajo: 'bg-green-100 text-green-800 border-green-200',
-  medio: 'bg-yellow-100 text-yellow-800 border-yellow-200',
-  alto: 'bg-orange-100 text-orange-800 border-orange-200',
-  critico: 'bg-red-100 text-red-800 border-red-200',
-};
-
-const COMPLETITUD_COLOR: Record<string, string> = {
-  minimo: 'bg-gray-100 text-gray-700 border-gray-200',
-  estandar: 'bg-blue-100 text-blue-800 border-blue-200',
-  completo: 'bg-green-100 text-green-800 border-green-200',
-};
+interface WizardSavedState {
+  paso: number;
+  wizardData: WizardAccumulatedData;
+}
 
 // -------------------------------------------------------
 // PERSISTENCIA LOCALSTORAGE
 // -------------------------------------------------------
 
-const STORAGE_PREFIX = 'cco_wizard_entidad_';
+const STORAGE_PREFIX = 'cco_wizard_entidad_v2_';
 
 function getStorageKey(entidadId?: string): string {
   return `${STORAGE_PREFIX}${entidadId || 'nueva'}`;
 }
 
-function saveWizardState(
-  key: string,
-  data: { paso: number; formData: Partial<EntidadCreateFormData> }
-): void {
+function saveWizardState(key: string, state: WizardSavedState): void {
   try {
-    // Serializar fechas como strings ISO para localStorage
-    const serializable = JSON.parse(JSON.stringify(data, (_, v) =>
-      v instanceof Date ? v.toISOString() : v
-    ));
+    const serializable = JSON.parse(
+      JSON.stringify(state, (_, v) => (v instanceof Date ? v.toISOString() : v))
+    );
     localStorage.setItem(key, JSON.stringify(serializable));
   } catch {
-    // Silencioso: localStorage puede no estar disponible
+    // Silencioso
   }
 }
 
-function loadWizardState(
-  key: string
-): { paso: number; formData: Partial<EntidadCreateFormData> } | null {
+function loadWizardState(key: string): WizardSavedState | null {
   try {
     const raw = localStorage.getItem(key);
     if (!raw) return null;
-    const parsed = JSON.parse(raw);
-    // Restaurar fechas
-    if (parsed.formData?.fechaNDA && typeof parsed.formData.fechaNDA === 'string') {
-      parsed.formData.fechaNDA = new Date(parsed.formData.fechaNDA);
+    const parsed = JSON.parse(raw) as WizardSavedState;
+    // Restaurar Date en fechaNDA del paso 3
+    if (
+      parsed.wizardData?.paso3?.fechaNDA &&
+      typeof parsed.wizardData.paso3.fechaNDA === 'string'
+    ) {
+      parsed.wizardData.paso3.fechaNDA = new Date(
+        parsed.wizardData.paso3.fechaNDA as unknown as string
+      );
     }
     return parsed;
   } catch {
@@ -158,22 +92,8 @@ function clearWizardState(key: string): void {
 }
 
 // -------------------------------------------------------
-// HELPER: Crear stakeholder con todos los campos requeridos
+// HELPERS
 // -------------------------------------------------------
-
-function crearStakeholderVacio() {
-  return {
-    id: uuidv4(),
-    nombre: '',
-    cargo: '',
-    email: '',
-    telefono: '',
-    rol: 'usuario_final' as const,
-    nivelInfluencia: 'medio' as const,
-    nivelInteres: 'medio' as const,
-    canalComunicacion: '',
-  };
-}
 
 /**
  * Normaliza un stakeholder de Firestore asegurando que todos los campos
@@ -186,9 +106,11 @@ function normalizarStakeholder(s: Record<string, unknown>) {
     cargo: (s.cargo as string) || '',
     email: (s.email as string) || '',
     telefono: (s.telefono as string) || '',
-    rol: (s.rol as EntidadCreateFormData['stakeholders'][0]['rol']) || 'usuario_final',
-    nivelInfluencia: (s.nivelInfluencia as EntidadCreateFormData['stakeholders'][0]['nivelInfluencia']) || 'medio',
-    nivelInteres: (s.nivelInteres as EntidadCreateFormData['stakeholders'][0]['nivelInteres']) || 'medio',
+    rol: (s.rol as Paso2Data['stakeholders'][0]['rol']) || 'usuario_final',
+    nivelInfluencia:
+      (s.nivelInfluencia as Paso2Data['stakeholders'][0]['nivelInfluencia']) || 'medio',
+    nivelInteres:
+      (s.nivelInteres as Paso2Data['stakeholders'][0]['nivelInteres']) || 'medio',
     canalComunicacion: (s.canalComunicacion as string) || '',
   };
 }
@@ -258,179 +180,123 @@ export function EntidadForm({ mode, entidad }: EntidadFormProps) {
   const router = useRouter();
   const TOTAL_PASOS = 3;
   const storageKey = getStorageKey(entidad?.id);
-  const savedState = useRef(mode === 'create' ? null : loadWizardState(storageKey));
-  const [restoredFromStorage, setRestoredFromStorage] = useState(false);
 
-  const [paso, setPaso] = useState(() => savedState.current?.paso ?? 1);
-  // ref sincronizado para evitar closure stale en handleFinalSubmit / onSubmit
-  const pasoRef = useRef(paso);
-  useEffect(() => { pasoRef.current = paso; }, [paso]);
-  const [stepError, setStepError] = useState<string | null>(null);
+  // En modo create NO restauramos localStorage (evita pre-cargar datos de otra entidad)
+  const savedState = useRef<WizardSavedState | null>(
+    mode === 'create' ? null : loadWizardState(storageKey)
+  );
+
+  const [paso, setPaso] = useState<number>(() => savedState.current?.paso ?? 1);
+  const [restoredFromStorage, setRestoredFromStorage] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+
+  // wizardData: acumulación de datos validados por paso
+  const [wizardData, setWizardData] = useState<WizardAccumulatedData>(() => {
+    // Prioridad: localStorage > entidad de Firestore > vacío
+    if (savedState.current?.wizardData) {
+      return savedState.current.wizardData;
+    }
+    // Construir desde la entidad (modo edit)
+    const paso1: Paso1Data | undefined = entidad
+      ? {
+          tipo: entidad.tipo ?? 'cliente',
+          razonSocial: entidad.razonSocial ?? '',
+          nombreComercial: entidad.nombreComercial ?? '',
+          rut: entidad.rut ?? '',
+          sector: entidad.sector ?? 'otro',
+          pais: entidad.pais ?? 'Chile',
+          ciudad: entidad.ciudad ?? '',
+          direccion: entidad.direccion ?? '',
+          sitioWeb: entidad.sitioWeb ?? '',
+        }
+      : undefined;
+
+    const paso2: Paso2Data | undefined = entidad?.stakeholders?.length
+      ? {
+          stakeholders: entidad.stakeholders.map((s) =>
+            normalizarStakeholder(s as unknown as Record<string, unknown>)
+          ),
+        }
+      : undefined;
+
+    const paso3: Partial<Paso3Data> | undefined = entidad
+      ? {
+          respuestasFactibilidad: entidad.respuestasFactibilidad,
+          tieneNDA: entidad.tieneNDA ?? false,
+          fechaNDA: entidad.fechaNDA,
+          notas: entidad.notas ?? '',
+        }
+      : undefined;
+
+    return { paso1, paso2, paso3 };
+  });
 
   const { mutateAsync: crearEntidad, isPending: isCreating } = useCreateEntidad();
   const { mutateAsync: actualizarEntidad, isPending: isUpdating } = useUpdateEntidad();
   const isLoading = isCreating || isUpdating;
-  const [submitError, setSubmitError] = useState<string | null>(null);
 
-  // Construir defaultValues con normalización robusta de stakeholders
-  const buildDefaultValues = useCallback((): Partial<EntidadCreateFormData> => {
-    // Si hay datos guardados en localStorage, usarlos como base
-    const saved = savedState.current?.formData;
-
-    const stakeholdersFromEntity = entidad?.stakeholders?.length
-      ? entidad.stakeholders.map((s) => normalizarStakeholder(s as unknown as Record<string, unknown>))
-      : [crearStakeholderVacio()];
-
-    const stakeholdersFromSaved = saved?.stakeholders?.length
-      ? saved.stakeholders.map((s) => normalizarStakeholder(s as unknown as Record<string, unknown>))
-      : null;
-
-    return {
-      tipo: saved?.tipo ?? entidad?.tipo ?? 'cliente',
-      razonSocial: saved?.razonSocial ?? entidad?.razonSocial ?? '',
-      nombreComercial: saved?.nombreComercial ?? entidad?.nombreComercial ?? '',
-      rut: saved?.rut ?? entidad?.rut ?? '',
-      sector: saved?.sector ?? entidad?.sector ?? undefined,
-      pais: saved?.pais ?? entidad?.pais ?? 'Chile',
-      ciudad: saved?.ciudad ?? entidad?.ciudad ?? '',
-      direccion: saved?.direccion ?? entidad?.direccion ?? '',
-      sitioWeb: saved?.sitioWeb ?? entidad?.sitioWeb ?? '',
-      stakeholders: stakeholdersFromSaved ?? stakeholdersFromEntity,
-      tieneNDA: saved?.tieneNDA ?? entidad?.tieneNDA ?? false,
-      fechaNDA: saved?.fechaNDA ?? entidad?.fechaNDA ?? undefined,
-      notas: saved?.notas ?? entidad?.notas ?? '',
-      nivelRiesgo: saved?.nivelRiesgo ?? entidad?.nivelRiesgo ?? 'bajo',
-      estado: saved?.estado ?? entidad?.estado ?? 'activo',
-      respuestasFactibilidad: mode === 'create' ? undefined : (saved?.respuestasFactibilidad ?? entidad?.respuestasFactibilidad ?? undefined),
-    };
-  }, [entidad]);
-
-  const {
-    register,
-    watch,
-    control,
-    getValues,
-    setError,
-    clearErrors,
-    formState: { errors },
-  } = useForm<EntidadCreateFormData>({
-    // SIN zodResolver: el resolver bloqueaba handleSubmit silenciosamente cuando
-    // los <Select> de factibilidad (Paso 3) se montaban con '' y fallaban z.enum().
-    // Toda la validación es ahora explícita: por paso en irSiguiente, y completa en onSubmit.
-    defaultValues: buildDefaultValues(),
-    mode: 'onChange',
-    shouldUnregister: false,
-  });
-
-  const { fields, append, remove } = useFieldArray({ control, name: 'stakeholders' });
-
-  // Notificar al usuario si se restauró desde localStorage
+  // Notificar si se restauró desde localStorage
   useEffect(() => {
     if (savedState.current && !restoredFromStorage) {
       setRestoredFromStorage(true);
     }
   }, [restoredFromStorage]);
 
-  // Watch values for live preview
-  const watchedTieneNDA = watch('tieneNDA');
-  const watchedRespuestas = watch('respuestasFactibilidad');
-  const watchedStakeholders = watch('stakeholders');
-  const watchedFields = watch(['tipo', 'razonSocial', 'rut', 'sector', 'pais']);
-
-  // Guardar estado en localStorage al cambiar de paso o al modificar el formulario
-  const persistState = useCallback(() => {
-    const currentData = getValues();
-    saveWizardState(storageKey, { paso, formData: currentData });
-  }, [storageKey, paso, getValues]);
-
-  // Persistir al cambiar de paso
+  // Persistir en localStorage cuando cambian paso o wizardData
   useEffect(() => {
-    persistState();
-  }, [paso, persistState]);
+    saveWizardState(storageKey, { paso, wizardData });
+  }, [paso, wizardData, storageKey]);
 
-  // Calcular nivel de riesgo en tiempo real (Paso 3)
-  const nivelRiesgoCalc =
-    watchedRespuestas &&
-    Object.values(watchedRespuestas).every(Boolean)
-      ? calcularNivelRiesgo(watchedRespuestas as RespuestasFactibilidad)
-      : null;
-
-  // Calcular completitud estimada (solo indicativo)
-  const completitudEstimada = (() => {
-    const [tipo, razonSocial, rut, sector, pais] = watchedFields;
+  // -------------------------------------------------------
+  // COMPLETITUD ESTIMADA — calculada a partir de pasos 1 y 2
+  // (no requiere datos del paso 3 en tiempo real)
+  // -------------------------------------------------------
+  const completitudEstimada = ((): 'minimo' | 'estandar' | 'completo' => {
+    const p1 = wizardData.paso1;
+    const p2 = wizardData.paso2;
+    if (!p1 || !p2) return 'minimo';
+    const { tipo, razonSocial, rut, sector, pais } = p1;
     const tengoMinimo =
-      !!tipo && !!razonSocial?.trim() && !!rut?.trim() && !!sector && !!pais?.trim() &&
-      (watchedStakeholders?.length ?? 0) >= 1;
+      !!tipo &&
+      !!razonSocial?.trim() &&
+      !!rut?.trim() &&
+      !!sector &&
+      !!pais?.trim() &&
+      (p2.stakeholders?.length ?? 0) >= 1;
     if (!tengoMinimo) return 'minimo';
-    const stakeholdersConInfluencia = (watchedStakeholders ?? []).filter(
+    const stakeholdersConInfluencia = p2.stakeholders.filter(
       (s) => s.nivelInfluencia === 'alto' || s.nivelInfluencia === 'medio'
     );
-    const tieneFactibilidad = !!watchedRespuestas && Object.values(watchedRespuestas).some(Boolean);
-    if (stakeholdersConInfluencia.length >= 2 && tieneFactibilidad) return 'estandar';
+    if (stakeholdersConInfluencia.length >= 2) return 'estandar';
     return 'minimo';
   })();
 
   // -------------------------------------------------------
-  // NAVEGACIÓN ENTRE PASOS
+  // HANDLERS DE NAVEGACIÓN ENTRE PASOS
   // -------------------------------------------------------
 
-  // Schema parcial de Paso 1 para validación manual (sin zodResolver)
-  const step1Schema = entidadBaseSchema.pick({
-    tipo: true,
-    razonSocial: true,
-    rut: true,
-    sector: true,
-    pais: true,
-  });
-
-  const irSiguiente = async () => {
-    try {
-      setStepError(null);
-      clearErrors();
-
-      if (paso === 1) {
-        // Validación manual del Paso 1 con Zod (sin zodResolver global)
-        const result = step1Schema.safeParse({
-          tipo: getValues('tipo'),
-          razonSocial: getValues('razonSocial'),
-          rut: getValues('rut'),
-          sector: getValues('sector'),
-          pais: getValues('pais'),
-        });
-        if (!result.success) {
-          result.error.issues.forEach((issue) => {
-            const field = issue.path[0] as keyof EntidadCreateFormData;
-            if (field) setError(field, { type: 'manual', message: issue.message });
-          });
-          setStepError('Corrige los campos marcados en rojo antes de continuar.');
-          window.scrollTo({ top: 0, behavior: 'smooth' });
-          return;
-        }
-      } else if (paso === 2) {
-        // Validación mínima: basta con que exista al menos 1 stakeholder en el array.
-        // La validación completa de campos ocurre en onSubmit.
-        const stks = getValues('stakeholders');
-        if (!Array.isArray(stks) || stks.length === 0) {
-          setStepError('Agrega al menos un stakeholder antes de continuar.');
-          window.scrollTo({ top: 0, behavior: 'smooth' });
-          return;
-        }
-      }
-
-      // Validación pasada — persistir y avanzar
-      persistState();
-      setPaso((p) => Math.min(p + 1, TOTAL_PASOS));
-      return; // corta ejecución posterior tras avanzar paso
-    } catch (err) {
-      console.error('[EntidadForm] Error en irSiguiente:', err);
-      setStepError('Error inesperado al validar. Intente nuevamente.');
-    }
+  const handlePaso1Next = (data: Paso1Data) => {
+    setWizardData((prev) => ({ ...prev, paso1: data }));
+    setPaso(2);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const irAnterior = () => {
-    setStepError(null);
-    persistState();
-    setPaso((p) => Math.max(p - 1, 1));
+  const handlePaso2Next = (data: Paso2Data) => {
+    setWizardData((prev) => ({ ...prev, paso2: data }));
+    setPaso(3);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handlePaso2Back = (draft?: Partial<Paso2Data>) => {
+    if (draft) setWizardData((prev) => ({ ...prev, paso2: draft as Paso2Data }));
+    setPaso(1);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handlePaso3Back = (draft?: Partial<Paso3Data>) => {
+    if (draft) setWizardData((prev) => ({ ...prev, paso3: draft }));
+    setPaso(2);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const handleCancel = () => {
@@ -444,73 +310,55 @@ export function EntidadForm({ mode, entidad }: EntidadFormProps) {
   };
 
   // -------------------------------------------------------
-  // SUBMIT
+  // SUBMIT FINAL — solo se llama desde WizardPaso3.onSubmit
   // -------------------------------------------------------
 
-  const handleFinalSubmit = useCallback(async () => {
-    // Prevenir doble-submit durante una mutación activa
-    if (isLoading) return;
-    // Blindaje extra: usa pasoRef para evitar closure stale
-    if (pasoRef.current !== TOTAL_PASOS) return;
+  const handleFinalSubmit = async (paso3Data: Paso3Data) => {
+    const paso1 = wizardData.paso1;
+    const paso2 = wizardData.paso2;
+
+    if (!paso1 || !paso2) {
+      setSubmitError('Datos incompletos. Por favor, completa todos los pasos.');
+      return;
+    }
+
+    // Filtrar stakeholders sin nombre (limpieza defensiva)
+    const stakeholdersConId = paso2.stakeholders
+      .filter((s) => s.nombre?.trim())
+      .map((s) => ({ ...s, id: s.id ?? uuidv4() }));
+
+    if (!stakeholdersConId.length) {
+      setSubmitError('Debes agregar al menos un stakeholder con nombre. Vuelve al Paso 2.');
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      return;
+    }
+
+    // respuestasFactibilidad ya fue limpiada por el zodResolver del Paso 3
+    const cleanRespuestas = paso3Data.respuestasFactibilidad as
+      | RespuestasFactibilidad
+      | undefined;
+
+    const nivelRiesgo = cleanRespuestas
+      ? calcularNivelRiesgo(cleanRespuestas)
+      : 'bajo';
+
+    const payload = {
+      ...paso1,
+      stakeholders: stakeholdersConId,
+      respuestasFactibilidad: cleanRespuestas,
+      tieneNDA: paso3Data.tieneNDA,
+      fechaNDA: paso3Data.fechaNDA,
+      notas: paso3Data.notas,
+      nivelRiesgo,
+      estado: (entidad?.estado ?? 'activo') as
+        | 'activo'
+        | 'inactivo'
+        | 'observado'
+        | 'suspendido',
+    };
 
     try {
       setSubmitError(null);
-
-      // Leer valores directamente desde el estado del formulario (fuente de verdad)
-      const rawData = getValues();
-
-      // ── Stakeholders ──────────────────────────────────────────
-      // Usar getValues como fuente autoritativa (bypasa cualquier transformación del resolver)
-      const stakeholders = (rawData.stakeholders ?? []).filter(
-        (s) => s.nombre?.trim()
-      );
-      if (!stakeholders.length) {
-        setSubmitError('Debes agregar al menos un stakeholder con nombre. Vuelve al Paso 2.');
-        window.scrollTo({ top: 0, behavior: 'smooth' });
-        return;
-      }
-
-      // ── Limpieza de respuestasFactibilidad ────────────────────
-      // Los <Select> del Paso 3 se montan con '' (placeholder).
-      // Eliminamos entradas vacías para no enviar strings inválidos a Firestore.
-      const rawRespuestas = rawData.respuestasFactibilidad;
-      const cleanRespuestas = (() => {
-        if (!rawRespuestas || typeof rawRespuestas !== 'object') return undefined;
-        const cleaned: Record<string, unknown> = {};
-        for (const [k, v] of Object.entries(rawRespuestas as Record<string, unknown>)) {
-          if (v !== '' && v !== null && v !== undefined) cleaned[k] = v;
-        }
-        return Object.keys(cleaned).length > 0
-          ? (cleaned as unknown as RespuestasFactibilidad)
-          : undefined;
-      })();
-
-      // ── Validación cross-field NDA ─────────────────────────────
-      if (rawData.tieneNDA === true && !rawData.fechaNDA) {
-        setSubmitError('Si tiene NDA, debe indicar la fecha de firma.');
-        window.scrollTo({ top: 0, behavior: 'smooth' });
-        return;
-      }
-
-      // ── Calcular nivel de riesgo ──────────────────────────────
-      const nivelRiesgo = cleanRespuestas
-        ? calcularNivelRiesgo(cleanRespuestas)
-        : (rawData.nivelRiesgo ?? 'bajo');
-
-      const stakeholdersConId = stakeholders.map((s) => ({
-        ...s,
-        id: s.id ?? uuidv4(),
-      }));
-
-      const payload = {
-        ...rawData,
-        stakeholders: stakeholdersConId,
-        respuestasFactibilidad: cleanRespuestas,
-        nivelRiesgo,
-      };
-
-      console.log('[EntidadForm] Submit → stakeholders:', stakeholdersConId.length, '| factibilidad:', !!cleanRespuestas);
-
       if (mode === 'create') {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const nueva = await crearEntidad(payload as any);
@@ -523,34 +371,21 @@ export function EntidadForm({ mode, entidad }: EntidadFormProps) {
         router.push(ROUTES.ENTIDAD_DETALLE(entidad.id));
       }
     } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Error al guardar la entidad. Intente nuevamente.';
+      const msg =
+        err instanceof Error
+          ? err.message
+          : 'Error al guardar la entidad. Intente nuevamente.';
       setSubmitError(msg);
       window.scrollTo({ top: 0, behavior: 'smooth' });
     }
-  }, [paso, isLoading, crearEntidad, actualizarEntidad, entidad, storageKey, router, mode, TOTAL_PASOS]);
+  };
 
   // -------------------------------------------------------
   // RENDER
   // -------------------------------------------------------
 
   return (
-<form
-  noValidate
-  onKeyDown={(e) => {
-    if (e.key === 'Enter' && (e.target as HTMLElement).tagName !== 'TEXTAREA') {
-      e.preventDefault();
-      e.stopPropagation();
-    }
-  }}
-  onSubmit={(e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    if (pasoRef.current !== TOTAL_PASOS) return;
-    void handleFinalSubmit();
-  }}
-  className="space-y-6"
->
-
+    <div className="space-y-6">
       <StepIndicator paso={paso} totalPasos={TOTAL_PASOS} />
 
       {/* Banner de borrador restaurado */}
@@ -569,420 +404,45 @@ export function EntidadForm({ mode, entidad }: EntidadFormProps) {
         </div>
       )}
 
-      {/* Error de validación por paso */}
-      {stepError && (
-        <div className="rounded-md bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 px-4 py-3 text-sm text-amber-800 dark:text-amber-300 flex items-start gap-2">
-          <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
-          <span>{stepError}</span>
-        </div>
-      )}
-
-      {/* Error de envío */}
+      {/* Error de envío final */}
       {submitError && (
-        <div className="rounded-md bg-destructive/10 border border-destructive/30 px-4 py-3 text-sm text-destructive">
-          <strong>Error:</strong> {submitError}
+        <div className="rounded-md bg-destructive/10 border border-destructive/30 px-4 py-3 text-sm text-destructive flex items-start gap-2">
+          <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
+          <span>
+            <strong>Error:</strong> {submitError}
+          </span>
         </div>
       )}
 
-      {/* ============================= PASO 1 ============================= */}
+      {/* ===== PASO 1 ===== */}
       {paso === 1 && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Datos básicos</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {/* Tipo */}
-            <FormField label="Tipo de entidad" required error={errors.tipo?.message}>
-              <div className="flex gap-2 flex-wrap">
-                {TIPO_OPTIONS.map((opt) => (
-                  <Controller
-                    key={opt.value}
-                    control={control}
-                    name="tipo"
-                    render={({ field }) => (
-                      <button
-                        type="button"
-                        onClick={() => field.onChange(opt.value)}
-                        className={`px-4 py-2 rounded-md border text-sm font-medium transition-colors ${
-                          field.value === opt.value
-                            ? 'bg-primary text-white border-primary'
-                            : 'border-input bg-background hover:bg-accent'
-                        }`}
-                      >
-                        {opt.label}
-                      </button>
-                    )}
-                  />
-                ))}
-              </div>
-            </FormField>
-
-            {/* Razón Social + Nombre Comercial */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <FormField label="Razón social" required error={errors.razonSocial?.message}>
-                <Input
-                  {...register('razonSocial')}
-                  placeholder="Ej: Empresa S.A."
-                  error={!!errors.razonSocial}
-                />
-              </FormField>
-              <FormField label="Nombre comercial" error={errors.nombreComercial?.message}>
-                <Input
-                  {...register('nombreComercial')}
-                  placeholder="Ej: MiEmpresa (opcional)"
-                />
-              </FormField>
-            </div>
-
-            {/* RUT + Sector */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <FormField label="RUT" required error={errors.rut?.message}>
-                <Input
-                  {...register('rut')}
-                  placeholder="Ej: 76.123.456-7"
-                  error={!!errors.rut}
-                />
-              </FormField>
-              <FormField label="Sector" required error={errors.sector?.message}>
-                <Select
-                  {...register('sector')}
-                  options={SECTOR_OPTIONS}
-                  placeholder="Seleccione sector..."
-                  error={!!errors.sector}
-                />
-              </FormField>
-            </div>
-
-            {/* País + Ciudad */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <FormField label="País" required error={errors.pais?.message}>
-                <Input
-                  {...register('pais')}
-                  placeholder="Chile"
-                  error={!!errors.pais}
-                />
-              </FormField>
-              <FormField label="Ciudad" error={errors.ciudad?.message}>
-                <Input {...register('ciudad')} placeholder="Ej: Santiago (opcional)" />
-              </FormField>
-            </div>
-
-            {/* Dirección + Sitio Web */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <FormField label="Dirección" error={errors.direccion?.message}>
-                <Input {...register('direccion')} placeholder="Ej: Av. Principal 123 (opcional)" />
-              </FormField>
-              <FormField label="Sitio web" error={errors.sitioWeb?.message}>
-                <Input
-                  {...register('sitioWeb')}
-                  placeholder="https://ejemplo.com (opcional)"
-                  error={!!errors.sitioWeb}
-                />
-              </FormField>
-            </div>
-          </CardContent>
-        </Card>
+        <WizardPaso1
+          defaultValues={wizardData.paso1}
+          onNext={handlePaso1Next}
+          onCancel={handleCancel}
+        />
       )}
 
-      {/* ============================= PASO 2 ============================= */}
+      {/* ===== PASO 2 ===== */}
       {paso === 2 && (
-        <div className="space-y-4">
-          <Card>
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <CardTitle>Stakeholders</CardTitle>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => append(crearStakeholderVacio())}
-                >
-                  <Plus className="h-4 w-4 mr-1.5" />
-                  Agregar stakeholder
-                </Button>
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              {errors.stakeholders?.root && (
-                <p className="text-xs text-red-500">{errors.stakeholders.root.message}</p>
-              )}
-              {errors.stakeholders?.message && (
-                <p className="text-xs text-red-500">{errors.stakeholders.message}</p>
-              )}
-
-              {fields.map((field, idx) => (
-                <div key={field.id} className="rounded-lg border p-4 space-y-3 relative">
-                  <div className="flex items-center justify-between mb-1">
-                    <div className="flex items-center gap-2">
-                      <User className="h-4 w-4 text-muted-foreground" />
-                      <span className="text-sm font-medium text-muted-foreground">
-                        Stakeholder {idx + 1}
-                      </span>
-                    </div>
-                    {fields.length > 1 && (
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        className="text-destructive hover:text-destructive h-7 w-7 p-0"
-                        onClick={() => remove(idx)}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    )}
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <FormField
-                      label="Nombre"
-                      required
-                      error={errors.stakeholders?.[idx]?.nombre?.message}
-                    >
-                      <Input
-                        {...register(`stakeholders.${idx}.nombre`)}
-                        placeholder="Nombre completo"
-                        error={!!errors.stakeholders?.[idx]?.nombre}
-                      />
-                    </FormField>
-                    <FormField
-                      label="Cargo"
-                      required
-                      error={errors.stakeholders?.[idx]?.cargo?.message}
-                    >
-                      <Input
-                        {...register(`stakeholders.${idx}.cargo`)}
-                        placeholder="Ej: Gerente TI"
-                        error={!!errors.stakeholders?.[idx]?.cargo}
-                      />
-                    </FormField>
-                    <FormField
-                      label="Email"
-                      required
-                      error={errors.stakeholders?.[idx]?.email?.message}
-                    >
-                      <Input
-                        {...register(`stakeholders.${idx}.email`)}
-                        type="email"
-                        placeholder="email@empresa.com"
-                        error={!!errors.stakeholders?.[idx]?.email}
-                      />
-                    </FormField>
-                    <FormField
-                      label="Teléfono"
-                      error={errors.stakeholders?.[idx]?.telefono?.message}
-                    >
-                      <Input
-                        {...register(`stakeholders.${idx}.telefono`)}
-                        placeholder="+56 9 1234 5678 (opcional)"
-                      />
-                    </FormField>
-                    <FormField
-                      label="Rol"
-                      required
-                      error={errors.stakeholders?.[idx]?.rol?.message}
-                    >
-                      <Select
-                        {...register(`stakeholders.${idx}.rol`)}
-                        options={ROL_OPTIONS}
-                        placeholder="Seleccione rol..."
-                        error={!!errors.stakeholders?.[idx]?.rol}
-                      />
-                    </FormField>
-                    <FormField
-                      label="Canal de comunicación"
-                      error={errors.stakeholders?.[idx]?.canalComunicacion?.message}
-                    >
-                      <Input
-                        {...register(`stakeholders.${idx}.canalComunicacion`)}
-                        placeholder="Ej: Email, Teams, Reunión (opcional)"
-                      />
-                    </FormField>
-                    <FormField
-                      label="Nivel de influencia"
-                      required
-                      error={errors.stakeholders?.[idx]?.nivelInfluencia?.message}
-                    >
-                      <Select
-                        {...register(`stakeholders.${idx}.nivelInfluencia`)}
-                        options={NIVEL_OPTIONS}
-                        error={!!errors.stakeholders?.[idx]?.nivelInfluencia}
-                      />
-                    </FormField>
-                    <FormField
-                      label="Nivel de interés"
-                      required
-                      error={errors.stakeholders?.[idx]?.nivelInteres?.message}
-                    >
-                      <Select
-                        {...register(`stakeholders.${idx}.nivelInteres`)}
-                        options={NIVEL_OPTIONS}
-                        error={!!errors.stakeholders?.[idx]?.nivelInteres}
-                      />
-                    </FormField>
-                  </div>
-                </div>
-              ))}
-            </CardContent>
-          </Card>
-
-          {/* Matriz influencia/interés (M1-01 §6) */}
-          {(watchedStakeholders?.length ?? 0) > 0 && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-sm">Matriz Influencia / Interés (M1-01 §6)</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-2 gap-2 text-xs">
-                  {[
-                    { label: '🔴 Gestionar de cerca', influencia: 'alto', interes: 'alto', cls: 'bg-red-50 border-red-200 dark:bg-red-950/20' },
-                    { label: '🟡 Mantener satisfecho', influencia: 'alto', interes: 'bajo', cls: 'bg-yellow-50 border-yellow-200 dark:bg-yellow-950/20' },
-                    { label: '🔵 Mantener informado', influencia: 'bajo', interes: 'alto', cls: 'bg-blue-50 border-blue-200 dark:bg-blue-950/20' },
-                    { label: '⚫ Monitorear', influencia: 'bajo', interes: 'bajo', cls: 'bg-gray-50 border-gray-200 dark:bg-gray-900/20' },
-                  ].map(({ label, influencia, interes, cls }) => {
-                    const en = (watchedStakeholders ?? []).filter(
-                      (s) => s.nivelInfluencia === influencia && s.nivelInteres === interes
-                    );
-                    return (
-                      <div key={label} className={`rounded border p-2 ${cls}`}>
-                        <div className="font-medium mb-1">{label}</div>
-                        {en.length === 0 ? (
-                          <div className="text-muted-foreground italic">—</div>
-                        ) : (
-                          en.map((s, i) => (
-                            <div key={i} className="truncate">
-                              {s.nombre || `Stakeholder ${i + 1}`}
-                            </div>
-                          ))
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-                <p className="text-xs text-muted-foreground mt-2">
-                  Influencia: filas (alto = arriba) · Interés: columnas (alto = derecha)
-                </p>
-              </CardContent>
-            </Card>
-          )}
-        </div>
+        <WizardPaso2
+          defaultValues={wizardData.paso2}
+          onNext={handlePaso2Next}
+          onBack={handlePaso2Back}
+        />
       )}
 
-      {/* ============================= PASO 3 ============================= */}
+      {/* ===== PASO 3 ===== */}
       {paso === 3 && (
-        <div className="space-y-4">
-          {/* Evaluación de factibilidad */}
-          {PREGUNTAS_FACTIBILIDAD.map(({ categoria, preguntas }) => (
-            <Card key={categoria}>
-              <CardHeader>
-                <CardTitle className="text-base">{categoria}</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                {preguntas.map(({ key, label, opciones }) => (
-                  <FormField key={key} label={label}>
-                    <Select
-                      {...register(`respuestasFactibilidad.${key as keyof RespuestasFactibilidad}`)}
-                      options={opciones}
-                      placeholder="Seleccionar..."
-                    />
-                  </FormField>
-                ))}
-              </CardContent>
-            </Card>
-          ))}
-
-          {/* NDA + Notas */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">NDA y notas</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <FormField label="Acuerdo de confidencialidad (NDA)">
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    {...register('tieneNDA')}
-                    className="h-4 w-4 rounded border-gray-300 text-primary"
-                  />
-                  <span className="text-sm">La entidad tiene NDA firmado</span>
-                </label>
-              </FormField>
-
-              {watchedTieneNDA && (
-                <FormField label="Fecha de firma del NDA" required error={errors.fechaNDA?.message}>
-                  <input
-                    type="date"
-                    {...register('fechaNDA', { valueAsDate: true })}
-                    className="flex h-10 w-full max-w-xs rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                  />
-                </FormField>
-              )}
-
-              <FormField label="Notas adicionales" error={errors.notas?.message}>
-                <Textarea
-                  {...register('notas')}
-                  placeholder="Observaciones, contexto adicional, acuerdos verbales... (opcional)"
-                  rows={3}
-                />
-              </FormField>
-            </CardContent>
-          </Card>
-
-          {/* Indicadores en tiempo real */}
-          <Card>
-            <CardContent className="pt-4">
-              <div className="flex flex-wrap gap-3 items-center">
-                <div>
-                  <p className="text-xs text-muted-foreground mb-1">Nivel de riesgo calculado</p>
-                  {nivelRiesgoCalc ? (
-                    <Badge variant="outline" className={NIVEL_RIESGO_COLOR[nivelRiesgoCalc]}>
-                      {nivelRiesgoCalc.charAt(0).toUpperCase() + nivelRiesgoCalc.slice(1)}
-                    </Badge>
-                  ) : (
-                    <Badge variant="outline" className="text-muted-foreground">
-                      Completar evaluación
-                    </Badge>
-                  )}
-                </div>
-                <div>
-                  <p className="text-xs text-muted-foreground mb-1">Completitud estimada</p>
-                  <Badge variant="outline" className={COMPLETITUD_COLOR[completitudEstimada]}>
-                    {completitudEstimada.toUpperCase()}
-                  </Badge>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
+        <WizardPaso3
+          defaultValues={wizardData.paso3}
+          onSubmit={handleFinalSubmit}
+          onBack={handlePaso3Back}
+          isLoading={isLoading}
+          mode={mode}
+          completitud={completitudEstimada}
+        />
       )}
-
-      {/* ============================= NAVEGACIÓN ============================= */}
-      <div className="flex items-center justify-between pt-2">
-        <Button
-          type="button"
-          variant="outline"
-          onClick={paso === 1 ? handleCancel : irAnterior}
-        >
-          <ChevronLeft className="h-4 w-4 mr-1.5" />
-          {paso === 1 ? 'Cancelar' : 'Anterior'}
-        </Button>
-
-        {paso < TOTAL_PASOS ? (
-          <Button type="button" onClick={irSiguiente}>
-            Siguiente
-            <ChevronRight className="h-4 w-4 ml-1.5" />
-          </Button>
-        ) : (
-          <Button type="submit" disabled={isLoading}>
-            {isLoading
-              ? mode === 'create'
-                ? 'Creando...'
-                : 'Guardando...'
-              : mode === 'create'
-              ? 'Crear entidad'
-              : 'Guardar cambios'}
-          </Button>
-        )}
-      </div>
-    </form>
+    </div>
   );
 }
