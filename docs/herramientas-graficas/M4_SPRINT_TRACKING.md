@@ -12,10 +12,10 @@
 | Campo | Valor |
 |-------|-------|
 | Fecha inicio M4 | 2026-03-04 |
-| Fase actual | **FASE 2 — Gantt Chart** |
-| Sprint actual | **Sprint M4-S03** |
-| % completado global | 29% (Sprints S01+S02 ✅) |
-| Último commit M4 | `999af4a` feat(M4): Sprint M4-S02 |
+| Fase actual | **FASE 3 — PERT/Network** |
+| Sprint actual | **Sprint M4-S04** |
+| % completado global | 43% (Sprints S01+S02+S03 ✅) |
+| Último commit M4 | `c5dac9c` feat(M4): Sprint M4-S03 |
 | Branch | `main` |
 
 ---
@@ -95,16 +95,16 @@
 
 | # | Tarea | Estado | Commit | Notas |
 |---|-------|--------|--------|-------|
-| 2.1 | `npm install gantt-task-react` | 🔲 PENDIENTE | — | |
-| 2.2 | `src/components/cronograma/hooks/useTareasGantt.ts` | 🔲 PENDIENTE | — | Transforma `Tarea[]` → `Task[]` de gantt-task-react |
-| 2.3 | `src/components/cronograma/GanttToolbar.tsx` | 🔲 PENDIENTE | — | Zoom day/week/month/quarter, toggle CPM, filtros |
-| 2.4 | `src/components/cronograma/GanttChart.tsx` (estándar) | 🔲 PENDIENTE | — | `dynamic(() => import('gantt-task-react'), { ssr: false })` |
-| 2.5 | `src/components/cronograma/TrackingGantt.tsx` | 🔲 PENDIENTE | — | Requiere `useLineasBase` |
-| 2.6 | `src/components/cronograma/index.ts` — re-exports | 🔲 PENDIENTE | — | |
-| 2.7 | `src/components/proyectos/TabCronograma.tsx` — sub-tabs: Gantt / Tracking | 🔲 PENDIENTE | — | Lazy load de ambos |
-| 2.8 | Agregar tab `{ id: 'cronograma', label: 'Cronograma', icon: GanttChartSquare }` a `TABS` en `ProyectoDetalle.tsx` | 🔲 PENDIENTE | — | |
-| 2.9 | `npx tsc --noEmit` → 0 errores | 🔲 PENDIENTE | — | |
-| 2.10 | `git commit + push` Sprint M4-S03 | 🔲 PENDIENTE | — | |
+| 2.1 | `npm install gantt-task-react` | ✅ COMPLETADO | c5dac9c | gantt-task-react@0.3.9 |
+| 2.2 | `src/components/cronograma/hooks/useTareasGantt.ts` | ✅ COMPLETADO | c5dac9c | Incluye useBaselineGanttTasks para TrackingGantt |
+| 2.3 | `src/components/cronograma/GanttToolbar.tsx` | ✅ COMPLETADO | c5dac9c | Zoom day/week/month, toggle CPM, filtro por estado |
+| 2.4 | `src/components/cronograma/GanttChart.tsx` (estándar) | ✅ COMPLETADO | c5dac9c | Dynamic import SSR:false, filtro + CPM toggle |
+| 2.5 | `src/components/cronograma/TrackingGantt.tsx` | ✅ COMPLETADO | c5dac9c | Baseline gris + actual coloreado; alerta si sin LB |
+| 2.6 | `src/components/cronograma/index.ts` — re-exports | ✅ COMPLETADO | c5dac9c | |
+| 2.7 | `src/components/proyectos/TabCronograma.tsx` — sub-tabs: Gantt / Tracking | ✅ COMPLETADO | c5dac9c | Lazy load SSR:false en cada sub-tab |
+| 2.8 | Agregar tab `{ id: 'cronograma', label: 'Cronograma', icon: GanttChartSquare }` a `TABS` en `ProyectoDetalle.tsx` | ✅ COMPLETADO | c5dac9c | |
+| 2.9 | `npx tsc --noEmit` → 0 errores | ✅ COMPLETADO | c5dac9c | |
+| 2.10 | `git commit + push` Sprint M4-S03 | ✅ COMPLETADO | c5dac9c | |
 
 ---
 
