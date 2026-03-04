@@ -10,7 +10,7 @@ import { useState } from 'react'
 import {
   FileText, Search, FlaskConical, LayoutList, ClipboardList,
   Calendar, CheckSquare, Rocket, Lock, CheckCircle2,
-  AlertTriangle, ChevronRight, Info, ArrowLeft,
+  AlertTriangle, ChevronRight, Info, ArrowLeft, Download,
 } from 'lucide-react'
 import Link from 'next/link'
 import { Badge } from '@/components/ui/badge'
@@ -27,6 +27,7 @@ import { Fase5Panel } from './Fase5Panel'
 import { Fase6Panel } from './Fase6Panel'
 import { Fase7Panel } from './Fase7Panel'
 import { Fase8Panel } from './Fase8Panel'
+import { ExportarSRSModal } from './ExportarSRSModal'
 
 // -------------------------------------------------------
 // TIPOS
@@ -151,6 +152,7 @@ export function SRSPage({ proyecto, srs }: Props) {
   // Seleccionar la primera fase habilitada por defecto
   const defaultFase = (fasesHabilitadas[0] ?? 1) as FaseId
   const [faseActiva, setFaseActiva] = useState<FaseId>(defaultFase)
+  const [showExportar, setShowExportar] = useState(false)
 
   const estadoConfig = ESTADO_SRS_CONFIG[srs.estado]
 
@@ -195,6 +197,10 @@ export function SRSPage({ proyecto, srs }: Props) {
               SRS {srs.tipoSRS}
             </Badge>
           )}
+          <Button variant="outline" size="sm" onClick={() => setShowExportar(true)}>
+            <Download className="h-4 w-4 mr-2" />
+            Exportar
+          </Button>
         </div>
       </div>
 
@@ -323,6 +329,15 @@ export function SRSPage({ proyecto, srs }: Props) {
           )}
         </div>
       </div>
+
+      {/* Modal exportación */}
+      {showExportar && (
+        <ExportarSRSModal
+          srs={srs}
+          proyecto={proyecto}
+          onClose={() => setShowExportar(false)}
+        />
+      )}
     </div>
   )
 }

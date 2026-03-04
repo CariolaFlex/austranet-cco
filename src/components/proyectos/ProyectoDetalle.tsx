@@ -15,12 +15,12 @@ import {
   ArrowLeft, Pencil, RefreshCw, ExternalLink,
   Users, AlertTriangle, Calendar, DollarSign,
   Clock, CheckCircle, XCircle, AlertCircle,
-  BarChart3, Info, Shield, GitBranch,
+  BarChart3, Info, Shield, GitBranch, FileText,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/lib'
-import { ESTADO_PROYECTO_CONFIG, ROUTES } from '@/constants'
+import { ESTADO_PROYECTO_CONFIG, ESTADO_SRS_CONFIG, ROUTES } from '@/constants'
 import {
   CRITICIDAD_CONFIG,
   TIPO_PROYECTO_CONFIG,
@@ -56,6 +56,8 @@ const colorMap: Record<string, string> = {
   yellow: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400 border-yellow-200',
   purple: 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400 border-purple-200',
   teal:   'bg-teal-100 text-teal-800 dark:bg-teal-900/30 dark:text-teal-400 border-teal-200',
+  cyan:   'bg-cyan-100 text-cyan-800 dark:bg-cyan-900/30 dark:text-cyan-400 border-cyan-200',
+  indigo: 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900/30 dark:text-indigo-400 border-indigo-200',
 }
 
 function ColorBadge({ color, label, className }: { color: string; label: string; className?: string }) {
@@ -90,6 +92,7 @@ const TABS = [
   { id: 'riesgos', label: 'Riesgos', icon: AlertTriangle },
   { id: 'hitos', label: 'Hitos', icon: Calendar },
   { id: 'presupuesto', label: 'Presupuesto', icon: DollarSign },
+  { id: 'alcance', label: 'Alcance / SRS', icon: FileText },
   { id: 'historial', label: 'Historial', icon: Clock },
   { id: 'configuracion', label: 'Repositorio Config.', icon: GitBranch },
   { id: 'metricas', label: 'Métricas GQM', icon: BarChart3 },
@@ -213,6 +216,7 @@ export function ProyectoDetalle({ proyecto, entidad, onCambiarEstado }: Proyecto
       )}
       {tabActivo === 'hitos' && <TabHitos proyecto={proyecto} />}
       {tabActivo === 'presupuesto' && <TabPresupuesto proyecto={proyecto} />}
+      {tabActivo === 'alcance' && <TabAlcance proyecto={proyecto} />}
       {tabActivo === 'historial' && <TabHistorial proyectoId={proyecto.id} />}
       {tabActivo === 'configuracion' && (
         <PanelCCBRepositorio
@@ -803,6 +807,118 @@ function TabPresupuesto({ proyecto }: { proyecto: Proyecto }) {
 // -------------------------------------------------------
 // TAB HISTORIAL
 // -------------------------------------------------------
+
+// -------------------------------------------------------
+// TAB ALCANCE / SRS
+// -------------------------------------------------------
+
+const ESTADOS_CON_SRS = ['activo_en_definicion', 'activo_en_desarrollo', 'pausado', 'completado'] as const
+
+function TabAlcance({ proyecto }: { proyecto: Proyecto }) {
+  const estadoSrsCfg = ESTADO_SRS_CONFIG[proyecto.estadoSRS]
+  const puedeVerSRS = (ESTADOS_CON_SRS as readonly string[]).includes(proyecto.estado)
+  const estadoProyectoCfg = ESTADO_PROYECTO_CONFIG[proyecto.estado]
+
+  return (
+    <div className="space-y-4">
+      {/* Header card */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base flex items-center gap-2">
+            <FileText className="h-4 w-4" />
+            Especificación de Requerimientos de Software (SRS)
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {/* Estado SRS actual */}
+          <div className="flex items-center justify-between flex-wrap gap-3">
+            <div className="space-y-1">
+              <p className="text-xs text-muted-foreground uppercase tracking-wide font-medium">Estado del SRS</p>
+              <Badge
+                variant="outline"
+                className={colorMap[estadoSrsCfg?.color ?? 'gray']}
+              >
+                {estadoSrsCfg?.label ?? proyecto.estadoSRS}
+              </Badge>
+            </div>
+            <div className="space-y-1 text-right">
+              <p className="text-xs text-muted-foreground uppercase tracking-wide font-medium">Estado del proyecto</p>
+              <Badge
+                variant="outline"
+                className={colorMap[estadoProyectoCfg?.color ?? 'gray']}
+              >
+                {estadoProyectoCfg?.label ?? proyecto.estado}
+              </Badge>
+            </div>
+          </div>
+
+          {/* CTA */}
+          {puedeVerSRS ? (
+            <div className="flex flex-col gap-3 pt-2">
+              <p className="text-sm text-muted-foreground">
+                El SRS del proyecto está disponible. Puedes revisar las fases, añadir información y exportar el documento.
+              </p>
+              <div className="flex gap-2 flex-wrap">
+                <Link href={ROUTES.PROYECTO_ALCANCE(proyecto.id)}>
+                  <Button size="sm">
+                    <FileText className="h-4 w-4 mr-2" />
+                    {proyecto.estadoSRS === 'no_iniciado' ? 'Iniciar SRS' : 'Ver SRS completo'}
+                  </Button>
+                </Link>
+                <Link href={ROUTES.PROYECTO_ALCANCE(proyecto.id)} target="_blank" rel="noopener noreferrer">
+                  <Button variant="outline" size="sm">
+                    <ExternalLink className="h-4 w-4 mr-2" />
+                    Abrir en nueva pestaña
+                  </Button>
+                </Link>
+              </div>
+            </div>
+          ) : (
+            <div className="rounded-lg border bg-muted/40 p-4 text-sm text-muted-foreground">
+              <p className="font-medium text-foreground mb-1">SRS no disponible</p>
+              <p>
+                El módulo Alcance / SRS no está disponible para proyectos en estado{' '}
+                <span className="font-medium">{estadoProyectoCfg?.label ?? proyecto.estado}</span>.
+                El SRS se activa cuando el proyecto está en estado activo, pausado o completado.
+              </p>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Resumen de fases (solo si el SRS está en curso) */}
+      {puedeVerSRS && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Progreso del SRS</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
+              {[
+                { label: 'GATE 1', passed: !['no_iniciado'].includes(proyecto.estadoSRS), desc: 'Factibilidad aprobada' },
+                { label: 'GATE 2', passed: proyecto.estadoSRS === 'aprobado', desc: 'SRS aprobado formalmente' },
+                { label: 'Versión', value: proyecto.estadoSRS === 'no_iniciado' ? 'v0.1' : 'En curso', desc: 'Versión del documento' },
+                { label: 'Estado', value: estadoSrsCfg?.label, desc: 'Fase actual' },
+              ].map((item) => (
+                <div key={item.label} className="p-3 rounded-lg bg-muted/40 space-y-1">
+                  <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">{item.label}</p>
+                  {'passed' in item ? (
+                    <p className={`font-semibold ${item.passed ? 'text-green-600 dark:text-green-400' : 'text-amber-600 dark:text-amber-400'}`}>
+                      {item.passed ? '✓ Superado' : '⏳ Pendiente'}
+                    </p>
+                  ) : (
+                    <p className="font-semibold">{item.value ?? '—'}</p>
+                  )}
+                  <p className="text-xs text-muted-foreground">{item.desc}</p>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+    </div>
+  )
+}
 
 function TabHistorial({ proyectoId }: { proyectoId: string }) {
   const { data: historial, isLoading } = useProyectoHistorial(proyectoId)
