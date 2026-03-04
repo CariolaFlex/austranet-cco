@@ -8,6 +8,7 @@
 // para que zodResolver funcione correctamente con los <Select> vacíos.
 // ============================================================
 
+import { useRef } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -192,6 +193,8 @@ export function WizardPaso3({
     return calcularNivelRiesgo(watchedRespuestasRaw as unknown as RespuestasFactibilidad);
   })();
 
+  const submitIntentRef = useRef<'pointer' | 'keyboard' | null>(null);
+
   const handleBack = () => {
     onBack(getValues() as Partial<Paso3Data>);
   };
@@ -294,7 +297,16 @@ export function WizardPaso3({
           <ChevronLeft className="h-4 w-4 mr-1.5" />
           Anterior
         </Button>
-        <Button type="submit" disabled={isLoading}>
+        <Button
+          type="submit"
+          disabled={isLoading}
+          onPointerDown={() => { submitIntentRef.current = 'pointer'; }}
+          onClick={(e) => {
+            const intent = submitIntentRef.current;
+            submitIntentRef.current = null;
+            if (!intent) e.preventDefault();
+          }}
+        >
           {isLoading
             ? mode === 'create'
               ? 'Creando...'

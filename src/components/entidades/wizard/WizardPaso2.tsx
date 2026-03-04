@@ -7,6 +7,7 @@
 // Muestra la matriz de influencia/interés en tiempo real.
 // ============================================================
 
+import { useRef } from 'react';
 import { useForm, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -104,12 +105,19 @@ export function WizardPaso2({ defaultValues, onNext, onBack }: WizardPaso2Props)
   const { fields, append, remove } = useFieldArray({ control, name: 'stakeholders' });
   const watchedStakeholders = watch('stakeholders');
 
+  const submitIntentRef = useRef<'pointer' | 'keyboard' | null>(null);
+
   const handleBack = () => {
     onBack({ stakeholders: getValues('stakeholders') });
   };
 
   return (
-    <form noValidate onSubmit={handleSubmit(onNext)} className="space-y-4">
+    <form
+      noValidate
+      onSubmit={handleSubmit(onNext)}
+      onKeyDown={(e) => { if (e.key === 'Enter') submitIntentRef.current = 'keyboard'; }}
+      className="space-y-4"
+    >
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">
@@ -304,7 +312,15 @@ export function WizardPaso2({ defaultValues, onNext, onBack }: WizardPaso2Props)
           <ChevronLeft className="h-4 w-4 mr-1.5" />
           Anterior
         </Button>
-        <Button type="submit">
+        <Button
+          type="submit"
+          onPointerDown={() => { submitIntentRef.current = 'pointer'; }}
+          onClick={(e) => {
+            const intent = submitIntentRef.current;
+            submitIntentRef.current = null;
+            if (!intent) e.preventDefault();
+          }}
+        >
           Siguiente
           <ChevronRight className="h-4 w-4 ml-1.5" />
         </Button>
