@@ -34,14 +34,30 @@ export function getFirestoreDb(): Firestore {
   return db;
 }
 
-// Helper to convert Firestore timestamps to Date objects
+// Helper to convert Firestore timestamps to Date objects.
+// IMPORTANT: Arrays must be handled before the generic object branch.
+// Without this, { ...array } spreads the array into a plain object {0: item, 1: item},
+// losing the array type. This caused stakeholders and sinonimos to become {} instead
+// of [] on read, manifesting as Stakeholders(0) and TypeError: s.join is not a function.
 export function convertTimestamps<T extends DocumentData>(data: T): T {
   const converted = { ...data };
   for (const key in converted) {
     const value = converted[key] as unknown;
-    if (value && typeof value === 'object' && 'toDate' in value && typeof (value as Timestamp).toDate === 'function') {
+    if (
+      value &&
+      typeof value === 'object' &&
+      'toDate' in value &&
+      typeof (value as Timestamp).toDate === 'function'
+    ) {
+      // Firestore Timestamp → JS Date
       (converted as Record<string, unknown>)[key] = (value as Timestamp).toDate();
+    } else if (Array.isArray(value)) {
+      // Array: preserve type, recurse into each element to convert nested Timestamps
+      (converted as Record<string, unknown>)[key] = value.map((item: unknown) =>
+        item && typeof item === 'object' ? convertTimestamps(item as DocumentData) : item
+      );
     } else if (typeof value === 'object' && value !== null) {
+      // Plain object: recurse
       (converted as Record<string, unknown>)[key] = convertTimestamps(value as DocumentData);
     }
   }
