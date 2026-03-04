@@ -262,6 +262,9 @@ export function EntidadForm({ mode, entidad }: EntidadFormProps) {
   const [restoredFromStorage, setRestoredFromStorage] = useState(false);
 
   const [paso, setPaso] = useState(() => savedState.current?.paso ?? 1);
+  // ref sincronizado para evitar closure stale en handleFinalSubmit / onSubmit
+  const pasoRef = useRef(paso);
+  useEffect(() => { pasoRef.current = paso; }, [paso]);
   const [stepError, setStepError] = useState<string | null>(null);
 
   const { mutateAsync: crearEntidad, isPending: isCreating } = useCreateEntidad();
@@ -417,6 +420,7 @@ export function EntidadForm({ mode, entidad }: EntidadFormProps) {
       // Validación pasada — persistir y avanzar
       persistState();
       setPaso((p) => Math.min(p + 1, TOTAL_PASOS));
+      return; // corta ejecución posterior tras avanzar paso
     } catch (err) {
       console.error('[EntidadForm] Error en irSiguiente:', err);
       setStepError('Error inesperado al validar. Intente nuevamente.');
@@ -443,11 +447,11 @@ export function EntidadForm({ mode, entidad }: EntidadFormProps) {
   // SUBMIT
   // -------------------------------------------------------
 
-  const handleFinalSubmit = async () => {
+  const handleFinalSubmit = useCallback(async () => {
     // Prevenir doble-submit durante una mutación activa
     if (isLoading) return;
-    // Blindaje extra: sólo puede ejecutarse desde el Paso 3 (final)
-    if (paso !== TOTAL_PASOS) return;
+    // Blindaje extra: usa pasoRef para evitar closure stale
+    if (pasoRef.current !== TOTAL_PASOS) return;
 
     try {
       setSubmitError(null);
@@ -523,7 +527,7 @@ export function EntidadForm({ mode, entidad }: EntidadFormProps) {
       setSubmitError(msg);
       window.scrollTo({ top: 0, behavior: 'smooth' });
     }
-  };
+  }, [paso, isLoading, crearEntidad, actualizarEntidad, entidad, storageKey, router, mode, TOTAL_PASOS]);
 
   // -------------------------------------------------------
   // RENDER
@@ -541,7 +545,7 @@ export function EntidadForm({ mode, entidad }: EntidadFormProps) {
   onSubmit={(e) => {
     e.preventDefault();
     e.stopPropagation();
-    if (paso !== TOTAL_PASOS) return;
+    if (pasoRef.current !== TOTAL_PASOS) return;
     void handleFinalSubmit();
   }}
   className="space-y-6"
