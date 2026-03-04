@@ -12,10 +12,10 @@
 | Campo | Valor |
 |-------|-------|
 | Fecha inicio M4 | 2026-03-04 |
-| Fase actual | **FASE 0 — Prerrequisitos** |
-| Sprint actual | **Sprint M4-S01** |
-| % completado global | 0% |
-| Último commit M4 | — |
+| Fase actual | **FASE 2 — Gantt Chart** |
+| Sprint actual | **Sprint M4-S03** |
+| % completado global | 29% (Sprints S01+S02 ✅) |
+| Último commit M4 | `999af4a` feat(M4): Sprint M4-S02 |
 | Branch | `main` |
 
 ---
@@ -47,18 +47,18 @@
 
 | # | Tarea | Estado | Commit | Notas |
 |---|-------|--------|--------|-------|
-| 0.1 | Añadir tipos `Tarea`, `Dependencia`, `AsignacionRecurso`, `LineaBase`, `SnapshotEVM`, `KPIsDashboard` a `types/index.ts` | 🔲 PENDIENTE | — | Agregar DESPUÉS de la interfaz `SRS` existente |
-| 0.2 | Extender interfaz `Proyecto` con `bac?`, `lineaBaseActivaId?`, `fechaInicioReal?`, `kpisDashboard?` | 🔲 PENDIENTE | — | No breaking changes |
-| 0.3 | Crear `src/services/tareas.service.ts` | 🔲 PENDIENTE | — | Patrón: igual que `proyectos.service.ts` |
-| 0.4 | Crear `src/services/lineas-base.service.ts` | 🔲 PENDIENTE | — | |
-| 0.5 | Crear `src/services/evm.service.ts` | 🔲 PENDIENTE | — | |
-| 0.6 | Crear `src/lib/cpm.ts` | 🔲 PENDIENTE | — | Algoritmo CPM puro sin imports React |
-| 0.7 | Crear `src/constants/evm.ts` | 🔲 PENDIENTE | — | Umbrales SPI/CPI y utils semáforo |
-| 0.8 | Crear `src/hooks/useTareas.ts` | 🔲 PENDIENTE | — | TanStack Query, mismo patrón que `useProyectos` |
-| 0.9 | Crear `src/hooks/useLineasBase.ts` | 🔲 PENDIENTE | — | |
-| 0.10 | Crear `src/hooks/useSnapshotsEVM.ts` | 🔲 PENDIENTE | — | Query subcol. `snapshots_evm` |
-| 0.11 | `npx tsc --noEmit` → 0 errores | 🔲 PENDIENTE | — | |
-| 0.12 | `git commit + push` Sprint M4-S01 | 🔲 PENDIENTE | — | |
+| 0.1 | Añadir tipos `Tarea`, `Dependencia`, `AsignacionRecurso`, `LineaBase`, `SnapshotEVM`, `KPIsDashboard` a `types/index.ts` | ✅ COMPLETADO | c482263 | |
+| 0.2 | Extender interfaz `Proyecto` con `bac?`, `lineaBaseActivaId?`, `fechaInicioReal?`, `kpisDashboard?` | ✅ COMPLETADO | c482263 | |
+| 0.3 | Crear `src/services/tareas.service.ts` | ✅ COMPLETADO | c482263 | |
+| 0.4 | Crear `src/services/lineas-base.service.ts` | ✅ COMPLETADO | c482263 | |
+| 0.5 | Crear `src/services/evm.service.ts` | ✅ COMPLETADO | c482263 | |
+| 0.6 | Crear `src/lib/cpm.ts` | ✅ COMPLETADO | c482263 | |
+| 0.7 | Crear `src/constants/evm.ts` | ✅ COMPLETADO | c482263 | |
+| 0.8 | Crear `src/hooks/useTareas.ts` | ✅ COMPLETADO | c482263 | |
+| 0.9 | Crear `src/hooks/useLineasBase.ts` | ✅ COMPLETADO | c482263 | |
+| 0.10 | Crear `src/hooks/useSnapshotsEVM.ts` | ✅ COMPLETADO | c482263 | |
+| 0.11 | `npx tsc --noEmit` → 0 errores | ✅ COMPLETADO | c482263 | |
+| 0.12 | `git commit + push` Sprint M4-S01 | ✅ COMPLETADO | c482263 | |
 
 ---
 
@@ -71,19 +71,19 @@
 
 | # | Tarea | Estado | Commit | Notas |
 |---|-------|--------|--------|-------|
-| 1.1 | `src/components/common/ChartContainer.tsx` — wrapper con Skeleton + EmptyState | 🔲 PENDIENTE | — | Reutilizable en todos los gráficos |
-| 1.2 | `src/components/control/SemaforoPanel.tsx` | 🔲 PENDIENTE | — | Pure React, sin chart lib |
-| 1.3 | `src/components/control/KPIBadgeEVM.tsx` | 🔲 PENDIENTE | — | |
-| 1.4 | `src/components/control/EVMSummaryTable.tsx` | 🔲 PENDIENTE | — | Tabla con colores semáforo |
-| 1.5 | `src/components/control/EVMChart.tsx` — Recharts ComposedChart (datos mock) | 🔲 PENDIENTE | — | 3 Line: PV, EV, AC + ReferenceLine fecha hoy |
-| 1.6 | `src/components/control/SCurveChart.tsx` — Recharts AreaChart (datos mock) | 🔲 PENDIENTE | — | Curva acumulativa + Brush zoom |
-| 1.7 | `src/components/control/ResourceHistogram.tsx` — Recharts BarChart (datos mock) | 🔲 PENDIENTE | — | ReferenceLine para capacidad máxima |
-| 1.8 | `src/components/portafolio/RiskMatrixHeatmap.tsx` — refactorizar desde `TabRiesgos` | 🔲 PENDIENTE | — | **NO tocar `TabRiesgos`** — crear componente separado |
-| 1.9 | `src/components/portafolio/BubbleChartPortafolio.tsx` — Recharts ScatterChart | 🔲 PENDIENTE | — | Dot custom con tamaño = presupuesto |
-| 1.10 | `src/components/control/index.ts` — re-exports | 🔲 PENDIENTE | — | |
-| 1.11 | `src/components/portafolio/index.ts` — re-exports | 🔲 PENDIENTE | — | |
-| 1.12 | `npx tsc --noEmit` → 0 errores | 🔲 PENDIENTE | — | |
-| 1.13 | `git commit + push` Sprint M4-S02 | 🔲 PENDIENTE | — | |
+| 1.1 | `src/components/common/ChartContainer.tsx` — wrapper con Skeleton + EmptyState | ✅ COMPLETADO | 999af4a | animate-pulse en vez de Skeleton (no existe en proyecto) |
+| 1.2 | `src/components/control/SemaforoPanel.tsx` | ✅ COMPLETADO | 999af4a | Pure React, sin chart lib |
+| 1.3 | `src/components/control/KPIBadgeEVM.tsx` | ✅ COMPLETADO | 999af4a | |
+| 1.4 | `src/components/control/EVMSummaryTable.tsx` | ✅ COMPLETADO | 999af4a | Tabla con colores semáforo |
+| 1.5 | `src/components/control/EVMChart.tsx` — Recharts ComposedChart (datos mock) | ✅ COMPLETADO | 999af4a | 3 Line: PV, EV, AC + ReferenceLine fecha hoy |
+| 1.6 | `src/components/control/SCurveChart.tsx` — Recharts AreaChart (datos mock) | ✅ COMPLETADO | 999af4a | Curva acumulativa + Brush zoom |
+| 1.7 | `src/components/control/ResourceHistogram.tsx` — Recharts BarChart (datos mock) | ✅ COMPLETADO | 999af4a | ReferenceLine para capacidad máxima |
+| 1.8 | `src/components/portafolio/RiskMatrixHeatmap.tsx` — refactorizar desde `TabRiesgos` | ✅ COMPLETADO | 999af4a | Pure CSS grid 5×5, NO tocó TabRiesgos |
+| 1.9 | `src/components/portafolio/BubbleChartPortafolio.tsx` — Recharts ScatterChart | ✅ COMPLETADO | 999af4a | Dot custom con tamaño = presupuesto |
+| 1.10 | `src/components/control/index.ts` — re-exports | ✅ COMPLETADO | 999af4a | |
+| 1.11 | `src/components/portafolio/index.ts` — re-exports | ✅ COMPLETADO | 999af4a | |
+| 1.12 | `npx tsc --noEmit` → 0 errores | ✅ COMPLETADO | 999af4a | |
+| 1.13 | `git commit + push` Sprint M4-S02 | ✅ COMPLETADO | 999af4a | |
 
 ---
 

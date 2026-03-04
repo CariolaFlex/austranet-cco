@@ -15,7 +15,7 @@ import {
   ArrowLeft, Pencil, RefreshCw, ExternalLink,
   Users, AlertTriangle, Calendar, DollarSign,
   Clock, CheckCircle, XCircle, AlertCircle,
-  BarChart3, Info, Shield, GitBranch, FileText,
+  BarChart3, Info, Shield, GitBranch, FileText, GanttChartSquare,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -41,6 +41,7 @@ import { CerrarProyectoModal } from './CerrarProyectoModal'
 import { CancelarProyectoModal } from './CancelarProyectoModal'
 import { PanelCCBRepositorio } from './PanelCCBRepositorio'
 import { DashboardMetricasProceso } from './DashboardMetricasProceso'
+import { TabCronograma } from './TabCronograma'
 import type { Proyecto, Entidad, RiesgoProyecto } from '@/types'
 
 // -------------------------------------------------------
@@ -92,6 +93,7 @@ const TABS = [
   { id: 'riesgos', label: 'Riesgos', icon: AlertTriangle },
   { id: 'hitos', label: 'Hitos', icon: Calendar },
   { id: 'presupuesto', label: 'Presupuesto', icon: DollarSign },
+  { id: 'cronograma', label: 'Cronograma', icon: GanttChartSquare },
   { id: 'alcance', label: 'Alcance / SRS', icon: FileText },
   { id: 'historial', label: 'Historial', icon: Clock },
   { id: 'configuracion', label: 'Repositorio Config.', icon: GitBranch },
@@ -216,6 +218,7 @@ export function ProyectoDetalle({ proyecto, entidad, onCambiarEstado }: Proyecto
       )}
       {tabActivo === 'hitos' && <TabHitos proyecto={proyecto} />}
       {tabActivo === 'presupuesto' && <TabPresupuesto proyecto={proyecto} />}
+      {tabActivo === 'cronograma' && <TabCronograma proyecto={proyecto} />}
       {tabActivo === 'alcance' && <TabAlcance proyecto={proyecto} />}
       {tabActivo === 'historial' && <TabHistorial proyectoId={proyecto.id} />}
       {tabActivo === 'configuracion' && (
