@@ -212,7 +212,191 @@ export interface Proyecto {
   creadoEn: Date
   actualizadoEn: Date
   creadoPor: string
+
+  // M4: Cronograma y Control Visual
+  bac?: number                      // Budget at Completion explícito (complementa presupuesto.estimacionNominal)
+  lineaBaseActivaId?: string        // FK → lineas_base/{id}
+  fechaInicioReal?: Date            // Fecha real de inicio de ejecución
+  kpisDashboard?: KPIsDashboard     // Cache de KPIs EVM para carga O(1)
 }
+
+// ---------- CRONOGRAMA Y CONTROL VISUAL (MÓDULO 4 — M4) ----------
+
+/** Tipos de dependencia lógica entre tareas (estándar Primavera P6 / PMI) */
+export type TipoDependencia = 'FS' | 'SS' | 'FF' | 'SF'
+
+/** Estado de avance de una tarea individual */
+export type EstadoTarea = 'pendiente' | 'en_progreso' | 'completada' | 'suspendida'
+
+/** Tipo de nodo en la estructura WBS */
+export type TipoTarea = 'fase' | 'tarea' | 'hito_gantt' | 'resumen'
+
+/** Semáforo de salud de un indicador */
+export type SemaforoEVM = 'verde' | 'amarillo' | 'rojo' | 'sin_datos'
+
+/** Relación de dependencia lógica entre dos tareas */
+export interface Dependencia {
+  tareaIdPredecesora: string
+  tipo: TipoDependencia
+  /** Días de lag: positivo = retraso, negativo = adelanto (lead) */
+  lagDias: number
+}
+
+/** Recurso asignado a una tarea */
+export interface AsignacionRecurso {
+  id: string
+  nombre: string
+  tipo: 'persona' | 'equipo' | 'herramienta' | 'material'
+  /** Referencia al miembro del equipo del proyecto si aplica */
+  emailOId?: string
+  horasPorDia?: number
+  costoHora?: number
+  /** Límite para detección de sobreasignación */
+  unidadesDisponibles?: number
+}
+
+/**
+ * Tarea — Unidad atómica del cronograma (M4)
+ * Colección Firestore: 'tareas' (top-level, FK proyectoId)
+ */
+export interface Tarea {
+  id: string
+  proyectoId: string
+  lineaBaseActivaId?: string
+
+  // Estructura WBS
+  wbsCode: string                   // Ej: "1.0", "1.1", "2.3.1"
+  nivel: number                     // 0=fase, 1=paquete de trabajo, 2=tarea
+  tareaResumenId?: string           // FK → tarea padre (para estructura jerárquica)
+  orden: number                     // Posición en Gantt
+
+  // Datos fundamentales
+  nombre: string
+  descripcion?: string
+  tipo: TipoTarea
+  hitoVinculadoId?: string          // Puente con hitos M2 (proyecto.hitos[].id)
+
+  // Cronograma
+  fechaInicioPlaneada: Date
+  fechaFinPlaneada: Date
+  duracionDias: number
+  fechaInicioReal?: Date
+  fechaFinReal?: Date
+  duracionRealDias?: number
+
+  // Avance
+  porcentajeAvance: number          // 0–100
+  estado: EstadoTarea
+
+  // Dependencias lógicas
+  dependencias: Dependencia[]
+
+  // Recursos
+  asignaciones: AsignacionRecurso[]
+
+  // Costos
+  costoPlaneado: number
+  costoReal: number
+
+  // Campos CPM (calculados y cacheados)
+  es?: number                       // Early Start (días desde inicio proyecto)
+  ef?: number                       // Early Finish
+  ls?: number                       // Late Start
+  lf?: number                       // Late Finish
+  holguraTotal?: number             // Días: ls - es
+  holguraLibre?: number
+  esCritica: boolean
+
+  creadoEn: Date
+  actualizadoEn: Date
+  creadoPor: string
+}
+
+/** Snapshot de una tarea al momento de capturar una Línea Base */
+export interface TareaSnapshot {
+  tareaId: string
+  wbsCode: string
+  nombre: string
+  fechaInicioPlaneada: Date
+  fechaFinPlaneada: Date
+  duracionDias: number
+  costoPlaneado: number
+  esCritica: boolean
+  holguraTotal: number
+  porcentajeAvanceCaptura: number
+}
+
+/**
+ * Línea Base — Snapshot inmutable del cronograma para comparativa Tracking Gantt
+ * Colección Firestore: 'lineas_base' (top-level, FK proyectoId)
+ */
+export interface LineaBase {
+  id: string
+  proyectoId: string
+  nombre: string                    // Ej: "Línea Base Inicial", "LB Revisada Q2-2026"
+  esActiva: boolean                 // Solo una activa por proyecto
+  fechaCaptura: Date
+  capturaAutomatica: boolean        // true si fue auto-generada al iniciar ejecución
+  creadoPor: string
+  notas?: string
+  snapshotTareas: TareaSnapshot[]
+}
+
+/**
+ * Snapshot EVM semanal — Datos históricos para Curvas S y gráfico EVM
+ * Subcol. Firestore: 'proyectos/{proyectoId}/snapshots_evm'
+ */
+export interface SnapshotEVM {
+  id: string                        // ISO date del lunes: "2026-03-03"
+  fecha: Date
+  bac: number
+  pv: number                        // Planned Value acumulado
+  ev: number                        // Earned Value = Σ(costoPlaneado × %avance)
+  ac: number                        // Actual Cost acumulado
+  // Indicadores derivados
+  spi: number                       // EV/PV
+  cpi: number                       // EV/AC
+  sv: number                        // EV - PV
+  cv: number                        // EV - AC
+  eac: number                       // BAC/CPI
+  etc: number                       // EAC - AC
+  tcpi: number                      // (BAC-EV)/(BAC-AC)
+  // Semáforos pre-calculados
+  semaforoSPI: SemaforoEVM
+  semaforoCPI: SemaforoEVM
+  creadoEn: Date
+}
+
+/**
+ * KPIs Dashboard — Cache embebido en Proyecto para carga O(1)
+ * Actualizado por Cloud Function al guardar tareas
+ */
+export interface KPIsDashboard {
+  // EVM (snapshot más reciente)
+  spi: number
+  cpi: number
+  pv: number
+  ev: number
+  ac: number
+  eac: number
+  bac: number
+  // Cronograma
+  pctAvanceTareas: number           // % tareas completadas por cantidad
+  pctAvancePonderado: number        // % ponderado por costo
+  diasRestantes: number
+  desviacionDias: number            // + retraso, - adelanto vs línea base
+  // Semáforos
+  semaforoGeneral: SemaforoEVM
+  semaforoCronograma: SemaforoEVM
+  semaforoCostos: SemaforoEVM
+  // Portafolio
+  roi?: number                      // (beneficio - costo) / costo × 100
+  actualizadoEn: Date
+}
+
+/** DTOs M4 */
+export type CrearTareaDTO = Omit<Tarea, 'id' | 'creadoEn' | 'actualizadoEn' | 'creadoPor' | 'esCritica' | 'es' | 'ef' | 'ls' | 'lf' | 'holguraTotal' | 'holguraLibre'>
+export type ActualizarTareaDTO = Partial<Omit<Tarea, 'id' | 'creadoEn' | 'creadoPor' | 'proyectoId'>>
 
 // ---------- ALCANCE / SRS (MÓDULO 3) ----------
 

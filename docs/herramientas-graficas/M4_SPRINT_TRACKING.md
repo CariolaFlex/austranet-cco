@@ -1,0 +1,209 @@
+# M4 — Cronograma y Control Visual · Sprint Tracking
+
+> **Propósito:** Este archivo es el punto de entrada para cualquier chat nuevo que continúe el desarrollo del Módulo M4. Contiene el estado actual de implementación, decisiones tomadas y el siguiente paso exacto a ejecutar.
+>
+> **Instrucción para el modelo en un chat nuevo:**
+> Lee este archivo completo primero. Luego lee `planificacion_graficas_p6.md` si necesitas detalles de arquitectura. Empieza desde el primer ítem con estado `🔲 PENDIENTE`.
+
+---
+
+## Estado Global del Módulo
+
+| Campo | Valor |
+|-------|-------|
+| Fecha inicio M4 | 2026-03-04 |
+| Fase actual | **FASE 0 — Prerrequisitos** |
+| Sprint actual | **Sprint M4-S01** |
+| % completado global | 0% |
+| Último commit M4 | — |
+| Branch | `main` |
+
+---
+
+## Leyenda de Estados
+
+| Ícono | Significado |
+|-------|------------|
+| ✅ COMPLETADO | Implementado, con 0 errores TS, pusheado |
+| 🔄 EN PROGRESO | En este chat/sesión actual |
+| 🔲 PENDIENTE | No iniciado |
+| ⏭️ BLOQUEADO | Depende de otro ítem pendiente |
+| ⚠️ REVISIÓN | Completado pero requiere revisión/testing |
+
+---
+
+## SPRINT M4-S01 — Base de Datos y Tipos
+**Objetivo:** Colección `tareas`, tipos TypeScript, servicios CRUD básicos, algoritmo CPM.
+**Archivos clave a tocar:**
+- `src/types/index.ts` (extender)
+- `src/services/tareas.service.ts` (NUEVO)
+- `src/services/lineas-base.service.ts` (NUEVO)
+- `src/services/evm.service.ts` (NUEVO)
+- `src/lib/cpm.ts` (NUEVO)
+- `src/constants/evm.ts` (NUEVO)
+- `src/hooks/useTareas.ts` (NUEVO)
+- `src/hooks/useLineasBase.ts` (NUEVO)
+- `src/hooks/useSnapshotsEVM.ts` (NUEVO)
+
+| # | Tarea | Estado | Commit | Notas |
+|---|-------|--------|--------|-------|
+| 0.1 | Añadir tipos `Tarea`, `Dependencia`, `AsignacionRecurso`, `LineaBase`, `SnapshotEVM`, `KPIsDashboard` a `types/index.ts` | 🔲 PENDIENTE | — | Agregar DESPUÉS de la interfaz `SRS` existente |
+| 0.2 | Extender interfaz `Proyecto` con `bac?`, `lineaBaseActivaId?`, `fechaInicioReal?`, `kpisDashboard?` | 🔲 PENDIENTE | — | No breaking changes |
+| 0.3 | Crear `src/services/tareas.service.ts` | 🔲 PENDIENTE | — | Patrón: igual que `proyectos.service.ts` |
+| 0.4 | Crear `src/services/lineas-base.service.ts` | 🔲 PENDIENTE | — | |
+| 0.5 | Crear `src/services/evm.service.ts` | 🔲 PENDIENTE | — | |
+| 0.6 | Crear `src/lib/cpm.ts` | 🔲 PENDIENTE | — | Algoritmo CPM puro sin imports React |
+| 0.7 | Crear `src/constants/evm.ts` | 🔲 PENDIENTE | — | Umbrales SPI/CPI y utils semáforo |
+| 0.8 | Crear `src/hooks/useTareas.ts` | 🔲 PENDIENTE | — | TanStack Query, mismo patrón que `useProyectos` |
+| 0.9 | Crear `src/hooks/useLineasBase.ts` | 🔲 PENDIENTE | — | |
+| 0.10 | Crear `src/hooks/useSnapshotsEVM.ts` | 🔲 PENDIENTE | — | Query subcol. `snapshots_evm` |
+| 0.11 | `npx tsc --noEmit` → 0 errores | 🔲 PENDIENTE | — | |
+| 0.12 | `git commit + push` Sprint M4-S01 | 🔲 PENDIENTE | — | |
+
+---
+
+## SPRINT M4-S02 — Componentes Base (Sin datos reales aún)
+**Prerrequisito:** Sprint M4-S01 completado.
+**Archivos clave:**
+- `src/components/control/` (NUEVO directorio)
+- `src/components/portafolio/` (NUEVO directorio)
+- `src/components/common/ChartContainer.tsx` (NUEVO)
+
+| # | Tarea | Estado | Commit | Notas |
+|---|-------|--------|--------|-------|
+| 1.1 | `src/components/common/ChartContainer.tsx` — wrapper con Skeleton + EmptyState | 🔲 PENDIENTE | — | Reutilizable en todos los gráficos |
+| 1.2 | `src/components/control/SemaforoPanel.tsx` | 🔲 PENDIENTE | — | Pure React, sin chart lib |
+| 1.3 | `src/components/control/KPIBadgeEVM.tsx` | 🔲 PENDIENTE | — | |
+| 1.4 | `src/components/control/EVMSummaryTable.tsx` | 🔲 PENDIENTE | — | Tabla con colores semáforo |
+| 1.5 | `src/components/control/EVMChart.tsx` — Recharts ComposedChart (datos mock) | 🔲 PENDIENTE | — | 3 Line: PV, EV, AC + ReferenceLine fecha hoy |
+| 1.6 | `src/components/control/SCurveChart.tsx` — Recharts AreaChart (datos mock) | 🔲 PENDIENTE | — | Curva acumulativa + Brush zoom |
+| 1.7 | `src/components/control/ResourceHistogram.tsx` — Recharts BarChart (datos mock) | 🔲 PENDIENTE | — | ReferenceLine para capacidad máxima |
+| 1.8 | `src/components/portafolio/RiskMatrixHeatmap.tsx` — refactorizar desde `TabRiesgos` | 🔲 PENDIENTE | — | **NO tocar `TabRiesgos`** — crear componente separado |
+| 1.9 | `src/components/portafolio/BubbleChartPortafolio.tsx` — Recharts ScatterChart | 🔲 PENDIENTE | — | Dot custom con tamaño = presupuesto |
+| 1.10 | `src/components/control/index.ts` — re-exports | 🔲 PENDIENTE | — | |
+| 1.11 | `src/components/portafolio/index.ts` — re-exports | 🔲 PENDIENTE | — | |
+| 1.12 | `npx tsc --noEmit` → 0 errores | 🔲 PENDIENTE | — | |
+| 1.13 | `git commit + push` Sprint M4-S02 | 🔲 PENDIENTE | — | |
+
+---
+
+## SPRINT M4-S03 — Gantt Chart
+**Prerrequisito:** Sprint M4-S01 (tipos + hooks).
+**Instalar:** `npm install gantt-task-react`
+**Archivos clave:**
+- `src/components/cronograma/` (NUEVO directorio)
+
+| # | Tarea | Estado | Commit | Notas |
+|---|-------|--------|--------|-------|
+| 2.1 | `npm install gantt-task-react` | 🔲 PENDIENTE | — | |
+| 2.2 | `src/components/cronograma/hooks/useTareasGantt.ts` | 🔲 PENDIENTE | — | Transforma `Tarea[]` → `Task[]` de gantt-task-react |
+| 2.3 | `src/components/cronograma/GanttToolbar.tsx` | 🔲 PENDIENTE | — | Zoom day/week/month/quarter, toggle CPM, filtros |
+| 2.4 | `src/components/cronograma/GanttChart.tsx` (estándar) | 🔲 PENDIENTE | — | `dynamic(() => import('gantt-task-react'), { ssr: false })` |
+| 2.5 | `src/components/cronograma/TrackingGantt.tsx` | 🔲 PENDIENTE | — | Requiere `useLineasBase` |
+| 2.6 | `src/components/cronograma/index.ts` — re-exports | 🔲 PENDIENTE | — | |
+| 2.7 | `src/components/proyectos/TabCronograma.tsx` — sub-tabs: Gantt / Tracking | 🔲 PENDIENTE | — | Lazy load de ambos |
+| 2.8 | Agregar tab `{ id: 'cronograma', label: 'Cronograma', icon: GanttChartSquare }` a `TABS` en `ProyectoDetalle.tsx` | 🔲 PENDIENTE | — | |
+| 2.9 | `npx tsc --noEmit` → 0 errores | 🔲 PENDIENTE | — | |
+| 2.10 | `git commit + push` Sprint M4-S03 | 🔲 PENDIENTE | — | |
+
+---
+
+## SPRINT M4-S04 — Diagrama PERT / Network
+**Prerrequisito:** Sprint M4-S01 (tipos + CPM).
+**Instalar:** `npm install @xyflow/react @xyflow/dagre`
+
+| # | Tarea | Estado | Commit | Notas |
+|---|-------|--------|--------|-------|
+| 3.1 | `npm install @xyflow/react @xyflow/dagre` | 🔲 PENDIENTE | — | |
+| 3.2 | `src/components/cronograma/NodoCPMCustom.tsx` — Custom node React Flow | 🔲 PENDIENTE | — | 9 celdas estándar PERT: ES/EF/LS/LF/nombre/duración/holgura |
+| 3.3 | `src/components/cronograma/hooks/usePERTData.ts` | 🔲 PENDIENTE | — | `Tarea[]` + CPM result → nodes + edges + Dagre layout |
+| 3.4 | `src/components/cronograma/NetworkDiagram.tsx` | 🔲 PENDIENTE | — | `dynamic(import('@xyflow/react'), { ssr: false })` |
+| 3.5 | Agregar sub-tab `PERT` en `TabCronograma.tsx` | 🔲 PENDIENTE | — | |
+| 3.6 | `npx tsc --noEmit` → 0 errores | 🔲 PENDIENTE | — | |
+| 3.7 | `git commit + push` Sprint M4-S04 | 🔲 PENDIENTE | — | |
+
+---
+
+## SPRINT M4-S05 — Control EVM (datos reales)
+**Prerrequisito:** Sprints M4-S01 + M4-S02.
+
+| # | Tarea | Estado | Commit | Notas |
+|---|-------|--------|--------|-------|
+| 4.1 | Conectar `EVMChart.tsx` a `useSnapshotsEVM(proyectoId)` (datos reales) | 🔲 PENDIENTE | — | Reemplaza datos mock |
+| 4.2 | Conectar `SCurveChart.tsx` a datos reales | 🔲 PENDIENTE | — | |
+| 4.3 | Conectar `SemaforoPanel.tsx` a `proyecto.kpisDashboard` | 🔲 PENDIENTE | — | |
+| 4.4 | Conectar `ResourceHistogram.tsx` a tareas reales | 🔲 PENDIENTE | — | |
+| 4.5 | `src/components/proyectos/TabControlEVM.tsx` — compone todos | 🔲 PENDIENTE | — | SemaforoPanel + EVMChart + SCurveChart + Table |
+| 4.6 | Agregar tab `{ id: 'control', label: 'Control / EVM', icon: TrendingUp }` a `TABS` | 🔲 PENDIENTE | — | |
+| 4.7 | Cloud Function `scheduledEVMSnapshot` (Firebase Functions) | 🔲 PENDIENTE | — | Cron: lunes 00:00 América/Santiago |
+| 4.8 | Cloud Function `onProyectoEstadoChange` (auto-captura LineaBase) | 🔲 PENDIENTE | — | Trigger `onUpdate` proyectos.estado |
+| 4.9 | `npx tsc --noEmit` → 0 errores | 🔲 PENDIENTE | — | |
+| 4.10 | `git commit + push` Sprint M4-S05 | 🔲 PENDIENTE | — | |
+
+---
+
+## SPRINT M4-S06 — Dashboard Portafolio
+**Prerrequisito:** Sprint M4-S05 (`kpisDashboard` funcional).
+
+| # | Tarea | Estado | Commit | Notas |
+|---|-------|--------|--------|-------|
+| 5.1 | Extender página `/dashboard` con sección portafolio | 🔲 PENDIENTE | — | |
+| 5.2 | `BubbleChartPortafolio.tsx` con datos reales (`useProyectos` + `kpisDashboard`) | 🔲 PENDIENTE | — | |
+| 5.3 | `RiskMatrixHeatmap` en modo portafolio (todos los proyectos) | 🔲 PENDIENTE | — | |
+| 5.4 | Cloud Function `onTareaWrite` → actualiza `kpisDashboard` en proyecto | 🔲 PENDIENTE | — | |
+| 5.5 | `npx tsc --noEmit` → 0 errores | 🔲 PENDIENTE | — | |
+| 5.6 | `git commit + push` Sprint M4-S06 | 🔲 PENDIENTE | — | |
+
+---
+
+## SPRINT M4-S07 — Polish y Export
+**Prerrequisito:** Todos los sprints anteriores.
+
+| # | Tarea | Estado | Commit | Notas |
+|---|-------|--------|--------|-------|
+| 6.1 | Exportar Gantt a PDF (SVG → jsPDF, ya instalado) | 🔲 PENDIENTE | — | |
+| 6.2 | Exportar EVM a CSV | 🔲 PENDIENTE | — | |
+| 6.3 | Responsive Gantt (scroll horizontal ≥768px) | 🔲 PENDIENTE | — | |
+| 6.4 | Error boundaries por gráfico | 🔲 PENDIENTE | — | |
+| 6.5 | Performance: `React.memo`, `useMemo` en CPM | 🔲 PENDIENTE | — | |
+| 6.6 | `git commit + push` Sprint M4-S07 · TAG v4.0 | 🔲 PENDIENTE | — | |
+
+---
+
+## Decisiones Arquitectónicas Tomadas (No discutir de nuevo)
+
+| Decisión | Elección |
+|----------|---------|
+| Librería Gantt | `gantt-task-react` (MIT, React-native, FS/SS/FF/SF) |
+| Librería PERT | `@xyflow/react` + `@xyflow/dagre` |
+| Librería EVM/SCurves/Histogram/Bubble | `recharts` (ya instalado) |
+| Sin ECharts | Bundle +500kb innecesario |
+| Colección `tareas` | Top-level con `proyectoId` FK (igual que `srs`) |
+| Coexistencia `hitos` M2 + `tareas` M4 | Bridge: `Tarea.hitoVinculadoId?` |
+| Snapshots EVM | Subcol. semanal `proyectos/{id}/snapshots_evm` |
+| Cache KPIs | `proyectos/{id}.kpisDashboard` (embebido) |
+| CPM client-side | `src/lib/cpm.ts` para ≤200 tareas, CF para más |
+
+---
+
+## Contexto del Proyecto para Onboarding
+
+- **Stack:** Next.js 14 App Router · TypeScript · Tailwind · shadcn/ui · Firebase/Firestore · TanStack Query · Recharts (instalado) · jsPDF + docx (instalados)
+- **Módulos existentes:** M1 Entidades / M2 Proyectos / M3 Alcance-SRS
+- **Patrón de archivos:** Servicio en `src/services/`, hook en `src/hooks/`, componente en `src/components/{modulo}/`
+- **Patrón de hooks:** TanStack Query con `invalidateQueries` en mutations + toast via `sonner`
+- **Firestore:** Colecciones top-level + subcol. para historial. `convertTimestamps` en `src/lib/firebase/firestore.ts`
+- **ProyectoDetalle.tsx:** `src/components/proyectos/ProyectoDetalle.tsx` — tiene tabs array `TABS[]` + renderizado condicional por `tabActivo`
+- **Sin SSR** para librerías de gráficos: usar `dynamic(() => import(...), { ssr: false })`
+- **0 errores TS obligatorio** antes de cada commit
+
+---
+
+## Cómo continuar en un nuevo chat
+
+1. Lee este archivo completo (`M4_SPRINT_TRACKING.md`)
+2. Lee `planificacion_graficas_p6.md` para detalles de arquitectura (mismo directorio)
+3. Lee `src/types/index.ts` para entender tipos actuales
+4. Busca el primer ítem con estado `🔲 PENDIENTE` → empieza desde ahí
+5. Al terminar un ítem: actualiza este archivo a `✅ COMPLETADO` con el número de commit
+6. Siempre termina con `npx tsc --noEmit` + commit + push antes de cerrar el chat
