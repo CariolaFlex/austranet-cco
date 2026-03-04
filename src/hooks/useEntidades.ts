@@ -27,6 +27,7 @@ export function useEntidad(id: string) {
     // Garantiza que los datos se lean frescos desde Firestore sin depender del caché
     // tras crear/editar una entidad (soluciona el problema de Stakeholders(0)).
     staleTime: 0,
+    refetchOnMount: true,
   });
 }
 
