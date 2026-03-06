@@ -3,7 +3,7 @@
 > **Propósito:** Este archivo es el punto de entrada para cualquier chat nuevo que continúe el desarrollo del Módulo M4. Contiene el estado actual de implementación, decisiones tomadas y el siguiente paso exacto a ejecutar.
 >
 > **Instrucción para el modelo en un chat nuevo:**
-> Lee este archivo completo primero. Luego lee `planificacion_graficas_p6.md` si necesitas detalles de arquitectura. Empieza desde el primer ítem con estado `🔲 PENDIENTE`.
+> Lee este archivo completo primero. Luego lee `planificacion_graficas_p6.md` para detalles de arquitectura (mismo directorio). Empieza desde el primer ítem con estado `🔲 PENDIENTE`.
 
 ---
 
@@ -15,7 +15,7 @@
 | Fase actual | **FASE 6 — Polish y Export** |
 | Sprint actual | **M4 COMPLETADO** |
 | % completado global | 100% (Sprints S01–S07 ✅) |
-| Último commit M4 | `3be46b8` feat(M4): Sprint M4-S07 |
+| Último commit M4 | `556fe33` refactor: DRY services, fix tipos KPIs |
 | Branch | `main` |
 
 ---
@@ -200,11 +200,21 @@
 
 ---
 
+## Post-M4 — Fixes y Refactors
+
+| Commit | Descripción |
+|--------|-------------|
+| `368d945` | fix(evm): corregir upsert snapshot semanal (addDoc→setDoc) y tipado CPM (Date→number) |
+| `556fe33` | refactor: DRY services, fix tipos KPIs, limpiar gitkeeps — centraliza auth helpers, actualiza services barrel, mueve ProyectoConKPIs a types, calcula diasRestantes/desviacionDias reales |
+
+---
+
 ## Cómo continuar en un nuevo chat
 
 1. Lee este archivo completo (`M4_SPRINT_TRACKING.md`)
 2. Lee `planificacion_graficas_p6.md` para detalles de arquitectura (mismo directorio)
-3. Lee `src/types/index.ts` para entender tipos actuales
-4. Busca el primer ítem con estado `🔲 PENDIENTE` → empieza desde ahí
-5. Al terminar un ítem: actualiza este archivo a `✅ COMPLETADO` con el número de commit
-6. Siempre termina con `npx tsc --noEmit` + commit + push antes de cerrar el chat
+3. Lee `docs/ARQUITECTURA.md` para convenciones generales del proyecto
+4. Lee `src/types/index.ts` para entender tipos actuales
+5. Busca el primer ítem con estado `🔲 PENDIENTE` → empieza desde ahí
+6. Al terminar un ítem: actualiza este archivo a `✅ COMPLETADO` con el número de commit
+7. Siempre termina con `npx tsc --noEmit` + commit + push antes de cerrar el chat

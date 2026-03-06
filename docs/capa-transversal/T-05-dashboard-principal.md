@@ -956,4 +956,45 @@ Esta separación de responsabilidades mantiene el dashboard como componente de v
 
 ---
 
+---
+
+## Addendum M4 — Sección Portafolio EVM (2026-03-06)
+
+Con la implementación del Módulo M4 (tag v4.0), el dashboard principal incorpora una sección de portafolio debajo de los widgets existentes.
+
+### Sección "Portafolio EVM"
+
+**Ubicación:** Parte inferior de `/` (dashboard), debajo de los widgets de KPIs globales.
+
+**Layout:** `xl:grid-cols-2 gap-6` — dos columnas en pantallas grandes, columna única en mobile.
+
+**Fuente de datos:**
+```typescript
+// src/app/(dashboard)/page.tsx
+const { data: todosProyectos = [] } = useProyectos()
+const proyectosConKPIs = todosProyectos.filter(
+  (p): p is ProyectoConKPIs => !!p.kpisDashboard
+)
+```
+
+**Componentes:**
+
+| Componente | Props | Descripción |
+|------------|-------|-------------|
+| `BubbleChartPortafolio` | `proyectos={proyectosConKPIs}` | Scatter chart: Eje X = Riesgo/SPI, Eje Y = CPI/ROI, Tamaño = Presupuesto. Muestra datos mock si no hay proyectos con KPIs. |
+| `RiskMatrixHeatmap` | `riesgos={flatMapRiesgos}` `modo="portafolio"` | Heatmap 5×5 con todos los riesgos de proyectos activos agregados. |
+
+**Fallback:** Si `proyectosConKPIs.length === 0`, el `BubbleChartPortafolio` muestra 5 proyectos de muestra y un badge "datos de muestra". Esto ocurre mientras las Cloud Functions que actualizan `kpisDashboard` no estén activas.
+
+**Conexión con M4:** Los KPIs se calculan via `evmService.calcularKPIsActuales` (cliente) o via Cloud Functions cuando estén activas. El campo `proyecto.kpisDashboard` es el contrato entre M4 y el dashboard.
+
+### Actualización del header del documento
+
+| Campo | Valor original | Valor actualizado |
+|-------|---------------|-------------------|
+| Módulos que sirve | M1 · M2 · M3 | M1 · M2 · M3 · **M4** |
+| Versión | 1.0 | 1.1 |
+
+---
+
 *Documento generado para el sistema austranet-cco · Capa Transversal · T-05 de 6*

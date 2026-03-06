@@ -1,4 +1,21 @@
-Herramientas Gráficas y Visuales Fundamentales
+# Herramientas Gráficas y Visuales Fundamentales
+
+> **Estado de implementación (2026-03-06):** M4 completo (tag v4.0).
+> Ver `planificacion_graficas_p6.md` para la arquitectura técnica implementada.
+>
+> | Herramienta P6 | Estado en Austranet CCO | Componente |
+> |----------------|------------------------|------------|
+> | Gantt Estándar | ✅ Implementado | `GanttChart.tsx` (gantt-task-react) |
+> | Tracking Gantt | ✅ Implementado | `TrackingGantt.tsx` (gantt-task-react) |
+> | Network Diagram (PERT) | ✅ Implementado | `NetworkDiagram.tsx` (@xyflow/react) |
+> | Histograma de Recursos | ✅ Implementado | `ResourceHistogram.tsx` (Recharts) |
+> | Curvas S | ✅ Implementado | `SCurveChart.tsx` (Recharts) |
+> | Análisis EVM + Semáforos | ✅ Implementado | `EVMChart.tsx`, `SemaforoPanel.tsx` (Recharts + React) |
+> | Matriz de Riesgos | ✅ Implementado | `RiskMatrixHeatmap.tsx` (CSS Grid) |
+> | Bubble Chart Portafolio | ✅ Implementado | `BubbleChartPortafolio.tsx` (Recharts) |
+> | Time-Scaled Logic Diagram | ❌ No implementado | Fuera de scope actual |
+
+---
 
 
 
