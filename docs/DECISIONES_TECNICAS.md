@@ -180,3 +180,49 @@ export interface ProyectoConKPIs extends Proyecto {
 - Consistencia: todos los servicios usan exactamente el mismo mensaje de error
 
 **Regla:** Nunca copiar helpers de auth en servicios. Siempre importar de `@/lib/firebase/auth`.
+
+---
+
+## ADR-010 — Estrategia de escritura: APU con partidas embebidas
+
+**Estado:** Aceptado (M5-S01)
+
+**Contexto:** El documento `APU` almacena `partidas: Partida[]`, donde cada `Partida` contiene a su vez `insumos: Insumo[]`. Se necesita decidir la estrategia de escritura para crear, actualizar, eliminar y reordenar partidas dentro del documento.
+
+**Decisión:** Full replace del array `partidas` en todas las operaciones (crear, actualizar, eliminar). Nunca `arrayUnion`.
+
+**Respuesta a las 3 preguntas:**
+
+**1. ¿`arrayUnion` para crear + full replace para actualizar, o siempre full replace?**
+Siempre full replace. `arrayUnion` es útil para valores escalares o comparación por igualdad de objetos simples, pero no sirve para `Partida` porque:
+- No puede *actualizar* una partida existente — solo agregar o ignorar si ya existe.
+- No puede *eliminar* una partida (requeriría `arrayRemove` con el objeto exact match, frágil con objetos complejos).
+- `Partida` contiene `insumos: Insumo[]` (sub-array anidado), lo que hace que la comparación deep de `arrayUnion` sea imprevisible.
+Usar full replace para todas las operaciones garantiza consistencia y simplifica la capa de servicio a una sola función interna (`_overwritePartidas`).
+
+**2. ¿Qué pasa si dos usuarios editan partidas distintas del mismo APU simultáneamente?**
+Last-write-wins silencioso. El segundo escritor sobreescribe los cambios del primero. Esto es aceptable en M5-S01 porque:
+- APU es un documento de autoría individual: cada APU tiene un responsable único.
+- No es un documento colaborativo en tiempo real.
+- El hook invalida y refetch inmediatamente tras cada mutación, minimizando la ventana de inconsistencia.
+- Documentado como deuda técnica conocida. Future path: transacción Firestore con `precondition` sobre `actualizadoEn`.
+
+**3. ¿Es full replace + `actualizadoEn` como control optimista aceptable para uso single-editor?**
+Sí. El campo `actualizadoEn` actúa como etag ligero. Para M5-S01, el hook invalida después de cada mutación sin comparar timestamps — el refetch garantiza que el cliente siempre trabaja con datos frescos. La detección explícita de conflictos (mostrar alerta si el servidor tiene un `actualizadoEn` más nuevo que el local) se puede agregar en M5-S03 si el UX lo requiere.
+
+**Implementación:**
+```typescript
+// Función interna del servicio — la usan crearPartida, actualizarPartida, eliminarPartida
+async function _overwritePartidas(apuId: string, partidas: Partida[]): Promise<void> {
+  const db = getFirestoreDb()
+  await updateDoc(doc(db, 'apus', apuId), removeUndefined({
+    partidas,
+    actualizadoEn: Timestamp.now(),
+  }))
+}
+```
+
+**Consecuencias:**
+- Operaciones sobre `partidas` siempre leen el doc actual (vía param del hook) → construyen el array en memoria → ejecutan un solo `updateDoc`.
+- Límite de 1 MB del documento Firestore. Para un APU con 200 partidas de 10 insumos cada una, el documento ocupa ~200–400 KB — dentro del límite.
+- Sin transacciones en M5-S01. Concurrencia multi-usuario es deuda técnica aceptada.

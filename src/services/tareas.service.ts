@@ -17,7 +17,7 @@ import {
 } from 'firebase/firestore'
 import { getFirestoreDb, convertTimestamps, removeUndefined } from '@/lib/firebase/firestore'
 import { getCurrentUserId } from '@/lib/firebase/auth'
-import type { Tarea, CrearTareaDTO, ActualizarTareaDTO, EstadoTarea } from '@/types'
+import type { Tarea, CrearTareaDTO, ActualizarTareaDTO, EstadoTarea, Partida } from '@/types'
 
 const COLECCION = 'tareas'
 
@@ -170,5 +170,59 @@ export const tareasService = {
       )
     )
     void proyectoId // FK reference; no action needed here
+  },
+
+  // ---- M5 — Vinculación APU ----
+
+  /**
+   * Vincula una tarea a una partida de un APU.
+   * Guarda la referencia (apuId, apuPartidaId, cantidad) y cachea
+   * `costoUnitarioAPU` = partida.precioUnitario para que EVM no necesite re-leer el APU.
+   * Actualiza `costoPlaneado` = costoUnitarioAPU × cantidad.
+   *
+   * @param tareaId    ID de la tarea a vincular
+   * @param apuId      ID del APU
+   * @param partida    Objeto Partida completo (obtenido del APU en el hook del caller)
+   * @param cantidad   Cantidad de la unidad de la partida para esta tarea
+   */
+  vincularAPU: async (
+    tareaId: string,
+    apuId: string,
+    partida: Partida,
+    cantidad: number,
+  ): Promise<Tarea> => {
+    const costoPlaneado = partida.precioUnitario * cantidad
+    return tareasService.update(tareaId, {
+      apuId,
+      apuPartidaId: partida.id,
+      cantidad,
+      costoUnitarioAPU: partida.precioUnitario,
+      costoPlaneado,
+    })
+  },
+
+  /**
+   * Desvincula una tarea de su APU.
+   * Limpia todos los campos APU pero preserva `costoPlaneado` (queda en su último valor
+   * para no romper el cálculo EVM hasta que el usuario lo actualice manualmente).
+   *
+   * @param tareaId ID de la tarea a desvincular
+   */
+  desvincularAPU: async (tareaId: string): Promise<Tarea> => {
+    const db = getFirestoreDb()
+    const ahora = Timestamp.now()
+    // Usar updateDoc directamente para poder escribir null/undefined en los campos FK
+    // (removeUndefined los omite, pero aquí queremos borrarlos explícitamente con deleteField)
+    const { deleteField } = await import('firebase/firestore')
+    await updateDoc(doc(db, COLECCION, tareaId), {
+      apuId: deleteField(),
+      apuPartidaId: deleteField(),
+      cantidad: deleteField(),
+      costoUnitarioAPU: deleteField(),
+      actualizadoEn: ahora,
+    })
+    const updated = await tareasService.getById(tareaId)
+    if (!updated) throw new Error('Tarea no encontrada después de desvincular APU')
+    return updated
   },
 }

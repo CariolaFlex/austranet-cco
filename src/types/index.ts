@@ -307,6 +307,12 @@ export interface Tarea {
   holguraLibre?: number
   esCritica: boolean
 
+  // M5 — Vinculación APU (Análisis de Precios Unitarios) — opcional, aditivo
+  apuId?: string                    // FK → apus/{id}
+  apuPartidaId?: string             // ID de la partida dentro del APU
+  cantidad?: number                 // Cantidad de la unidad de la partida vinculada
+  costoUnitarioAPU?: number         // Cache: partida.precioUnitario (para evitar re-leer el APU en EVM)
+
   creadoEn: Date
   actualizadoEn: Date
   creadoPor: string
@@ -1488,6 +1494,95 @@ export interface ConfiguracionSistema {
     mensajeMantenimiento?: string
     versionApp: string
   }
+}
+
+// ============================================================
+// MÓDULO 5 — APU (ANÁLISIS DE PRECIOS UNITARIOS)
+// Colección Firestore: 'apus' (top-level, FK proyectoId)
+// ADR-010: escritura full-replace del array partidas[] (ver DECISIONES_TECNICAS.md)
+// ============================================================
+
+/** Categoría de insumo según clasificación estándar APU */
+export type CategoriaInsumo = 'material' | 'mano_de_obra' | 'equipo' | 'subcontrato'
+
+/** Estado del APU dentro de su ciclo de vida */
+export type EstadoAPU = 'borrador' | 'revision' | 'aprobado'
+
+/**
+ * Insumo — Recurso dentro de una partida APU.
+ * `subtotal` es desnormalizado: `cantidad × precioUnitario`. Se recalcula al guardar.
+ */
+export interface Insumo {
+  id: string
+  tipo: CategoriaInsumo
+  descripcion: string
+  codigo?: string                   // Código de catálogo si aplica
+  unidad: string                    // Ej: "m²", "kg", "hr", "gl"
+  cantidad: number                  // Rendimiento por unidad de partida
+  precioUnitario: number
+  subtotal: number                  // Desnormalizado: cantidad × precioUnitario
+  catalogoInsumoId?: string         // FK futuro → catálogo global (M5-S03)
+}
+
+/**
+ * Partida — Unidad de análisis de costos del APU.
+ * `costoDirecto` y `precioUnitario` son desnormalizados, recalculados al guardar.
+ * Fórmula: precioUnitario = costoDirecto × (1 + ggPct/100) × (1 + utilidadPct/100)
+ */
+export interface Partida {
+  id: string
+  codigo: string                    // Ej: "OB-001", "EL-012"
+  descripcion: string
+  unidad: string                    // Unidad de medida de la partida (ej: "m²", "un")
+  ggPct: number                     // Gastos Generales en % (ej: 15 = 15%)
+  utilidadPct: number               // Utilidad en % (ej: 10 = 10%)
+  costoDirecto: number              // Desnormalizado: Σ insumo.subtotal
+  precioUnitario: number            // Desnormalizado: fórmula GG+utilidad aplicada
+  insumos: Insumo[]
+}
+
+/**
+ * APU — Análisis de Precios Unitarios de un proyecto.
+ * Colección Firestore: 'apus' (top-level, FK proyectoId)
+ * Las partidas se almacenan embebidas en el documento (array).
+ * Estrategia de escritura: full replace (ADR-010).
+ */
+export interface APU {
+  id: string
+  proyectoId: string
+  nombre: string                    // Ej: "APU Obras Civiles v1"
+  descripcion?: string
+  moneda: string                    // ISO 4217: "CLP", "USD", "UF"
+  estado: EstadoAPU
+  version: number                   // Incrementa en cada aprobación (1, 2, 3…)
+  partidas: Partida[]
+  creadoEn: Date
+  actualizadoEn: Date
+  creadoPor: string
+}
+
+// ---------- DTOs M5 ----------
+
+/** DTO para crear un APU (sin campos auto-generados ni version) */
+export type CrearAPUDTO = Omit<APU, 'id' | 'creadoEn' | 'actualizadoEn' | 'creadoPor' | 'version'>
+
+/** DTO para actualizar campos del APU (no las partidas — usar métodos específicos) */
+export type ActualizarAPUDTO = Partial<Omit<APU, 'id' | 'creadoEn' | 'creadoPor' | 'proyectoId'>>
+
+/**
+ * DTO para crear una partida.
+ * `costoDirecto` y `precioUnitario` son calculados en el servicio — no se pasan en la creación.
+ */
+export type CrearPartidaDTO = Omit<Partida, 'id' | 'costoDirecto' | 'precioUnitario'>
+
+/** DTO para actualizar una partida (parcial) */
+export type ActualizarPartidaDTO = Partial<Omit<Partida, 'id'>>
+
+/** Filtros para queries de APUs */
+export interface FiltrosAPU {
+  proyectoId: string
+  estado?: EstadoAPU
+  busqueda?: string
 }
 
 export const CONFIG_SISTEMA_DEFAULTS: ConfiguracionSistema = {
