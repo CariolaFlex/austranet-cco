@@ -86,6 +86,7 @@ export function useUpdateAvanceTarea() {
   return useMutation({
     mutationFn: ({
       id,
+      proyectoId,
       porcentajeAvance,
       estado,
     }: {
@@ -93,7 +94,7 @@ export function useUpdateAvanceTarea() {
       proyectoId: string
       porcentajeAvance: number
       estado?: EstadoTarea
-    }) => tareasService.updateAvance(id, porcentajeAvance, estado),
+    }) => tareasService.updateAvance(id, porcentajeAvance, estado, proyectoId),
     onSuccess: (_, variables) => {
       qc.invalidateQueries({ queryKey: ['tareas', variables.proyectoId] })
       qc.invalidateQueries({ queryKey: ['tareas', 'detalle', variables.id] })

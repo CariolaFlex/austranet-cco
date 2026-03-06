@@ -319,6 +319,7 @@ export function useVincularAPUTarea() {
   return useMutation({
     mutationFn: ({
       tareaId,
+      proyectoId,
       apuId,
       partida,
       cantidad,
@@ -328,7 +329,7 @@ export function useVincularAPUTarea() {
       apuId: string
       partida: Partida
       cantidad: number
-    }) => tareasService.vincularAPU(tareaId, apuId, partida, cantidad),
+    }) => tareasService.vincularAPU(tareaId, apuId, partida, cantidad, proyectoId),
     onSuccess: (tarea, variables) => {
       qc.invalidateQueries({ queryKey: ['tareas', variables.proyectoId] })
       qc.invalidateQueries({ queryKey: ['tareas', 'detalle', variables.tareaId] })

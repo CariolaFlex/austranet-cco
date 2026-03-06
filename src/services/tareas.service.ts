@@ -16,7 +16,7 @@ import {
   Timestamp,
 } from 'firebase/firestore'
 import { getFirestoreDb, convertTimestamps, removeUndefined } from '@/lib/firebase/firestore'
-import { getCurrentUserId } from '@/lib/firebase/auth'
+import { getCurrentUserId, getFirebaseAuth } from '@/lib/firebase/auth'
 import type { Tarea, CrearTareaDTO, ActualizarTareaDTO, EstadoTarea, Partida } from '@/types'
 
 const COLECCION = 'tareas'
@@ -123,6 +123,7 @@ export const tareasService = {
     id: string,
     porcentajeAvance: number,
     estado?: EstadoTarea,
+    proyectoId?: string,
   ): Promise<void> => {
     const db = getFirestoreDb()
     const updateData: Record<string, unknown> = {
@@ -131,6 +132,19 @@ export const tareasService = {
     }
     if (estado) updateData.estado = estado
     await updateDoc(doc(db, COLECCION, id), updateData)
+
+    // P3: Snapshot EVM semanal idempotente (silencioso)
+    if (proyectoId) {
+      try {
+        const { evmService } = await import('./evm.service')
+        const tareas = await tareasService.getByProyectoId(proyectoId)
+        const proySnap = await getDoc(doc(db, 'proyectos', proyectoId))
+        const bac = (proySnap.data()?.presupuestoEstimado as number | undefined) ?? 0
+        if (bac > 0) {
+          await evmService.crearSnapshotDesdeTareas(proyectoId, tareas, bac, new Date())
+        }
+      } catch { /* silencioso — no bloquear la actualización de avance */ }
+    }
   },
 
   /**
@@ -190,15 +204,47 @@ export const tareasService = {
     apuId: string,
     partida: Partida,
     cantidad: number,
+    proyectoId?: string,
   ): Promise<Tarea> => {
     const costoPlaneado = partida.precioUnitario * cantidad
-    return tareasService.update(tareaId, {
+    const tarea = await tareasService.update(tareaId, {
       apuId,
       apuPartidaId: partida.id,
       cantidad,
       costoUnitarioAPU: partida.precioUnitario,
       costoPlaneado,
     })
+
+    // P1: Sincronizar BAC del proyecto (silencioso)
+    if (proyectoId) {
+      try {
+        const db = getFirestoreDb()
+        const tareas = await tareasService.getByProyectoId(proyectoId)
+        const bac = tareas
+          .filter((t) => t.estado !== 'suspendida')
+          .reduce((sum, t) => sum + (t.costoPlaneado ?? 0), 0)
+        await updateDoc(doc(db, 'proyectos', proyectoId), {
+          presupuestoEstimado: Math.round(bac * 100) / 100,
+          actualizadoEn: Timestamp.now(),
+        })
+      } catch { /* silencioso */ }
+
+      // P4: Auditoría T-03 (silencioso)
+      try {
+        const { auditoriaService } = await import('./auditoria.service')
+        const fbUser = getFirebaseAuth().currentUser
+        if (fbUser) await auditoriaService.registrar({
+          actor: { uid: fbUser.uid, nombre: fbUser.displayName ?? fbUser.email ?? 'Sistema', rol: 'analista' },
+          accion: 'TAREA_APU_VINCULADO',
+          modulo: 'M4',
+          entidad: { id: tareaId, tipo: 'Tarea' },
+          descripcion: `Tarea vinculada a APU ${apuId} (partida: ${partida.id}). Costo planeado: ${costoPlaneado}`,
+          resultado: 'exito',
+        })
+      } catch { /* silencioso */ }
+    }
+
+    return tarea
   },
 
   /**

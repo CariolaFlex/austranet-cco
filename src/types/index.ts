@@ -1351,7 +1351,7 @@ export interface NotificacionFS {
   accionRequerida: boolean
   accionUrl?: string
   entidadRelacionada?: { id: string; tipo: 'entidad' | 'proyecto' | 'srs' | 'usuario'; nombre: string }
-  modulo: 'M1' | 'M2' | 'M3' | 'T'
+  modulo: 'M1' | 'M2' | 'M3' | 'M4' | 'M5' | 'T'
   estado: EstadoNotificacion
   fechaCreacion: Date
   prioridad: PrioridadNotificacion
@@ -1374,6 +1374,10 @@ export type AccionAuditoria =
   // M3
   | 'SRS_CREADO' | 'SRS_ESTADO_CAMBIADO' | 'GATE1_PROCESADO' | 'GATE2_APROBADO'
   | 'REQUERIMIENTO_CREADO' | 'REQUERIMIENTO_EDITADO' | 'BUCLE_REGISTRADO'
+  // M4
+  | 'TAREA_CREADA' | 'TAREA_APU_VINCULADO' | 'TAREA_AVANCE_ACTUALIZADO'
+  // M5
+  | 'APU_CREADO' | 'APU_APROBADO' | 'APU_ELIMINADO' | 'CATALOGO_INSUMO_CREADO' | 'CATALOGO_INSUMO_EDITADO'
   // T
   | 'BUSQUEDA_GLOBAL' | 'CONFIG_MODIFICADA' | 'T06_CONFIGURACION_MODIFICADA'
 
@@ -1387,7 +1391,7 @@ export interface EntradaAuditoria {
     ip?: string
   }
   accion: AccionAuditoria
-  modulo: 'M1' | 'M2' | 'M3' | 'T'
+  modulo: 'M1' | 'M2' | 'M3' | 'M4' | 'M5' | 'T'
   entidad?: { id: string; tipo: string; nombre?: string }
   descripcion: string
   camposModificados?: Array<{ campo: string; valorAnterior: unknown; valorNuevo: unknown }>
@@ -1400,7 +1404,7 @@ export interface EntradaAuditoria {
 export interface ResultadoBusqueda {
   id: string
   tipo: 'entidad' | 'proyecto' | 'srs' | 'requerimiento' | 'usuario'
-  modulo: 'M1' | 'M2' | 'M3' | 'T'
+  modulo: 'M1' | 'M2' | 'M3' | 'M4' | 'M5' | 'T'
   titulo: string
   subtitulo?: string
   url: string

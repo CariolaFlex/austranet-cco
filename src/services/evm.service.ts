@@ -68,7 +68,11 @@ function calcularACDesdeTareas(tareas: Tarea[]): number {
 
 /**
  * Calcula PV (Planned Value) a una fecha dada.
- * Versión simplificada: suma costoPlaneado de tareas que debían haber iniciado antes de `fecha`.
+ * Versión simplificada MVP: suma el costoPlaneado completo de cada tarea
+ * desde su fechaInicioPlaneada (sin distribución lineal entre inicio y fin).
+ *
+ * @todo Post-MVP P5: distribuir linealmente el costoPlaneado entre
+ * fechaInicioPlaneada y fechaFinPlaneada de cada tarea para mayor precisión EVM.
  */
 function calcularPVDesdeTareas(tareas: Tarea[], fecha: Date): number {
   return tareas

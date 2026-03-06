@@ -18,7 +18,7 @@ import {
   Timestamp,
 } from 'firebase/firestore'
 import { getFirestoreDb, convertTimestamps, removeUndefined } from '@/lib/firebase/firestore'
-import { getCurrentUserId } from '@/lib/firebase/auth'
+import { getCurrentUserId, getFirebaseAuth } from '@/lib/firebase/auth'
 import type {
   APU,
   Partida,
@@ -75,6 +75,26 @@ async function _overwritePartidas(apuId: string, partidas: Partida[]): Promise<v
     partidas,
     actualizadoEn: Timestamp.now(),
   }))
+}
+
+/**
+ * P1 — Recalcula proyecto.presupuestoEstimado como la suma de costoPlaneado
+ * de todas las tareas activas (no suspendidas) del proyecto.
+ * Llamado silenciosamente desde aprobar() y actualizarPartida().
+ */
+async function _sincronizarBAC(proyectoId: string): Promise<void> {
+  try {
+    const { tareasService } = await import('./tareas.service')
+    const db = getFirestoreDb()
+    const tareas = await tareasService.getByProyectoId(proyectoId)
+    const bac = tareas
+      .filter((t) => t.estado !== 'suspendida')
+      .reduce((sum, t) => sum + (t.costoPlaneado ?? 0), 0)
+    await updateDoc(doc(db, 'proyectos', proyectoId), {
+      presupuestoEstimado: Math.round(bac * 100) / 100,
+      actualizadoEn: Timestamp.now(),
+    })
+  } catch { /* silencioso — no bloquear la operación principal */ }
 }
 
 // -------------------------------------------------------
@@ -139,6 +159,21 @@ export const apuService = {
     const docRef = await addDoc(collection(db, COLECCION), docData)
     const created = await apuService.getById(docRef.id)
     if (!created) throw new Error('APU no encontrado después de crear')
+
+    // P4: Auditoría T-03 (silencioso)
+    try {
+      const { auditoriaService } = await import('./auditoria.service')
+      const fbUser = getFirebaseAuth().currentUser
+      if (fbUser) await auditoriaService.registrar({
+        actor: { uid: fbUser.uid, nombre: fbUser.displayName ?? fbUser.email ?? 'Sistema', rol: 'analista' },
+        accion: 'APU_CREADO',
+        modulo: 'M5',
+        entidad: { id: created.id, tipo: 'APU', nombre: created.nombre },
+        descripcion: `APU "${created.nombre}" creado para proyecto ${created.proyectoId}`,
+        resultado: 'exito',
+      })
+    } catch { /* silencioso */ }
+
     return created
   },
 
@@ -183,6 +218,24 @@ export const apuService = {
 
     const updated = await apuService.getById(id)
     if (!updated) throw new Error('APU no encontrado después de aprobar')
+
+    // P1: Sincronizar presupuestoEstimado del proyecto con el total de tareas
+    await _sincronizarBAC(updated.proyectoId)
+
+    // P4: Auditoría T-03 (silencioso)
+    try {
+      const { auditoriaService } = await import('./auditoria.service')
+      const fbUser = getFirebaseAuth().currentUser
+      if (fbUser) await auditoriaService.registrar({
+        actor: { uid: fbUser.uid, nombre: fbUser.displayName ?? fbUser.email ?? 'Sistema', rol: 'analista' },
+        accion: 'APU_APROBADO',
+        modulo: 'M5',
+        entidad: { id: updated.id, tipo: 'APU', nombre: updated.nombre },
+        descripcion: `APU "${updated.nombre}" aprobado. Versión ${updated.version}`,
+        resultado: 'exito',
+      })
+    } catch { /* silencioso */ }
+
     return updated
   },
 
@@ -219,6 +272,9 @@ export const apuService = {
    * Recalcula desnormalizados. Estrategia: full replace del array (ADR-010).
    */
   actualizarPartida: async (apuId: string, partidaId: string, data: ActualizarPartidaDTO, partidasActuales: Partida[]): Promise<APU> => {
+    // Guardar precioUnitario anterior para detectar si cambió (P2)
+    const precioAnterior = partidasActuales.find((p) => p.id === partidaId)?.precioUnitario ?? 0
+
     const nuevasPartidas = partidasActuales.map((p) => {
       if (p.id !== partidaId) return p
       const merged = { ...p, ...data }
@@ -230,6 +286,29 @@ export const apuService = {
     await _overwritePartidas(apuId, nuevasPartidas)
     const updated = await apuService.getById(apuId)
     if (!updated) throw new Error('APU no encontrado después de actualizar partida')
+
+    // P2: Si cambió precioUnitario, propagar a tareas vinculadas (silencioso)
+    const partidaActualizada = updated.partidas.find((p) => p.id === partidaId)
+    if (partidaActualizada && Math.abs(partidaActualizada.precioUnitario - precioAnterior) > 0.001) {
+      try {
+        const { tareasService } = await import('./tareas.service')
+        const tareas = await tareasService.getByProyectoId(updated.proyectoId)
+        const vinculadas = tareas.filter((t) => t.apuId === apuId && t.apuPartidaId === partidaId)
+        if (vinculadas.length > 0) {
+          await Promise.all(
+            vinculadas.map((t) =>
+              tareasService.update(t.id, {
+                costoUnitarioAPU: partidaActualizada.precioUnitario,
+                costoPlaneado: Math.round(partidaActualizada.precioUnitario * (t.cantidad ?? 1) * 100) / 100,
+              })
+            )
+          )
+        }
+        // Sincronizar BAC del proyecto tras actualizar tareas
+        await _sincronizarBAC(updated.proyectoId)
+      } catch { /* silencioso — no bloquear la operación de partida */ }
+    }
+
     return updated
   },
 
