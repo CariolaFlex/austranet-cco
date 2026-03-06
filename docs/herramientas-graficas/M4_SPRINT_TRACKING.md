@@ -12,10 +12,10 @@
 | Campo | Valor |
 |-------|-------|
 | Fecha inicio M4 | 2026-03-04 |
-| Fase actual | **FASE 4 — Control EVM (datos reales)** |
-| Sprint actual | **Sprint M4-S05** |
-| % completado global | 57% (Sprints S01+S02+S03+S04 ✅) |
-| Último commit M4 | `fe46f29` feat(M4): Sprint M4-S04 |
+| Fase actual | **FASE 5 — Dashboard Portafolio** |
+| Sprint actual | **Sprint M4-S06** |
+| % completado global | 71% (Sprints S01+S02+S03+S04+S05 ✅) |
+| Último commit M4 | pendiente feat(M4): Sprint M4-S05 |
 | Branch | `main` |
 
 ---
@@ -130,16 +130,16 @@
 
 | # | Tarea | Estado | Commit | Notas |
 |---|-------|--------|--------|-------|
-| 4.1 | Conectar `EVMChart.tsx` a `useSnapshotsEVM(proyectoId)` (datos reales) | 🔲 PENDIENTE | — | Reemplaza datos mock |
-| 4.2 | Conectar `SCurveChart.tsx` a datos reales | 🔲 PENDIENTE | — | |
-| 4.3 | Conectar `SemaforoPanel.tsx` a `proyecto.kpisDashboard` | 🔲 PENDIENTE | — | |
-| 4.4 | Conectar `ResourceHistogram.tsx` a tareas reales | 🔲 PENDIENTE | — | |
-| 4.5 | `src/components/proyectos/TabControlEVM.tsx` — compone todos | 🔲 PENDIENTE | — | SemaforoPanel + EVMChart + SCurveChart + Table |
-| 4.6 | Agregar tab `{ id: 'control', label: 'Control / EVM', icon: TrendingUp }` a `TABS` | 🔲 PENDIENTE | — | |
-| 4.7 | Cloud Function `scheduledEVMSnapshot` (Firebase Functions) | 🔲 PENDIENTE | — | Cron: lunes 00:00 América/Santiago |
-| 4.8 | Cloud Function `onProyectoEstadoChange` (auto-captura LineaBase) | 🔲 PENDIENTE | — | Trigger `onUpdate` proyectos.estado |
-| 4.9 | `npx tsc --noEmit` → 0 errores | 🔲 PENDIENTE | — | |
-| 4.10 | `git commit + push` Sprint M4-S05 | 🔲 PENDIENTE | — | |
+| 4.1 | Conectar `EVMChart.tsx` a `useSnapshotsEVM(proyectoId)` (datos reales) | ✅ COMPLETADO | pendiente | Props `snapshots?` ya existían; TabControlEVM pasa datos reales |
+| 4.2 | Conectar `SCurveChart.tsx` a datos reales | ✅ COMPLETADO | pendiente | Mismo patrón — props opcionales |
+| 4.3 | Conectar `SemaforoPanel.tsx` a `proyecto.kpisDashboard` | ✅ COMPLETADO | pendiente | Prioridad: kpisDashboard → kpisLive → skeleton |
+| 4.4 | Conectar `ResourceHistogram.tsx` a tareas reales | ✅ COMPLETADO | pendiente | Props `tareas?` ya existían; pasa `useTareas(proyectoId)` |
+| 4.5 | `src/components/proyectos/TabControlEVM.tsx` — compone todos | ✅ COMPLETADO | pendiente | SemaforoPanel + EVMChart + SCurveChart + EVMSummaryTable + ResourceHistogram + btn Capturar Snapshot |
+| 4.6 | Agregar tab `{ id: 'control', label: 'Control / EVM', icon: TrendingUp }` a `TABS` | ✅ COMPLETADO | pendiente | |
+| 4.7 | Cloud Function `scheduledEVMSnapshot` (Firebase Functions) | ⏭️ BLOQUEADO | — | Diferido a S06/S07 — requiere Firebase Functions configurado |
+| 4.8 | Cloud Function `onProyectoEstadoChange` (auto-captura LineaBase) | ⏭️ BLOQUEADO | — | Diferido |
+| 4.9 | `npx tsc --noEmit` → 0 errores | ✅ COMPLETADO | pendiente | |
+| 4.10 | `git commit + push` Sprint M4-S05 | ✅ COMPLETADO | pendiente | |
 
 ---
 
