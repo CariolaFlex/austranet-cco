@@ -12,10 +12,10 @@
 | Campo | Valor |
 |-------|-------|
 | Fecha inicio M4 | 2026-03-04 |
-| Fase actual | **FASE 3 — PERT/Network** |
-| Sprint actual | **Sprint M4-S04** |
-| % completado global | 43% (Sprints S01+S02+S03 ✅) |
-| Último commit M4 | `c5dac9c` feat(M4): Sprint M4-S03 |
+| Fase actual | **FASE 4 — Control EVM (datos reales)** |
+| Sprint actual | **Sprint M4-S05** |
+| % completado global | 57% (Sprints S01+S02+S03+S04 ✅) |
+| Último commit M4 | `pendiente` feat(M4): Sprint M4-S04 |
 | Branch | `main` |
 
 ---
@@ -114,13 +114,14 @@
 
 | # | Tarea | Estado | Commit | Notas |
 |---|-------|--------|--------|-------|
-| 3.1 | `npm install @xyflow/react @xyflow/dagre` | 🔲 PENDIENTE | — | |
-| 3.2 | `src/components/cronograma/NodoCPMCustom.tsx` — Custom node React Flow | 🔲 PENDIENTE | — | 9 celdas estándar PERT: ES/EF/LS/LF/nombre/duración/holgura |
-| 3.3 | `src/components/cronograma/hooks/usePERTData.ts` | 🔲 PENDIENTE | — | `Tarea[]` + CPM result → nodes + edges + Dagre layout |
-| 3.4 | `src/components/cronograma/NetworkDiagram.tsx` | 🔲 PENDIENTE | — | `dynamic(import('@xyflow/react'), { ssr: false })` |
-| 3.5 | Agregar sub-tab `PERT` en `TabCronograma.tsx` | 🔲 PENDIENTE | — | |
-| 3.6 | `npx tsc --noEmit` → 0 errores | 🔲 PENDIENTE | — | |
-| 3.7 | `git commit + push` Sprint M4-S04 | 🔲 PENDIENTE | — | |
+| 3.1 | `npm install @xyflow/react @dagrejs/dagre` | ✅ COMPLETADO | — | `@xyflow/dagre` no existe en npm → usar `@dagrejs/dagre` (fork oficial xyflow) |
+| 3.2 | `src/components/cronograma/NodoCPMCustom.tsx` — Custom node React Flow | ✅ COMPLETADO | — | 9 celdas PERT; acepta `NodeProps` genérico para compatibilidad v12 |
+| 3.3 | `src/components/cronograma/hooks/usePERTData.ts` | ✅ COMPLETADO | — | `Tarea[]` + CPM inline → nodes + edges + Dagre layout (LR) |
+| 3.4 | `src/components/cronograma/NetworkDiagram.tsx` | ✅ COMPLETADO | — | Dynamic imports SSR:false; NODE_TYPES: NodeTypes; minimap + leyenda |
+| 3.5 | Agregar sub-tab `PERT / Red` en `TabCronograma.tsx` | ✅ COMPLETADO | — | SubTab 'pert' con ícono Network de lucide-react |
+| 3.6 | Actualizar `src/components/cronograma/index.ts` | ✅ COMPLETADO | — | Exports: NetworkDiagram, NodoCPMCustom, NodoCPMData, usePERTData, PERTData |
+| 3.7 | `npx tsc --noEmit` → 0 errores | ✅ COMPLETADO | — | |
+| 3.8 | `git commit + push` Sprint M4-S04 | ✅ COMPLETADO | pendiente | |
 
 ---
 

@@ -1,21 +1,18 @@
 'use client'
 
 /**
- * TabCronograma — M4 · Sprint M4-S03
+ * TabCronograma — M4 · Sprint M4-S04
  * Tab de Cronograma en ProyectoDetalle.
- * Sub-tabs: Gantt Estándar | Tracking Gantt
- * (PERT se agrega en Sprint M4-S04)
+ * Sub-tabs: Gantt Estándar | Tracking Gantt | PERT / Red
  */
 
 import { useState } from 'react'
 import dynamic from 'next/dynamic'
-import { BarChart2, GitCompare } from 'lucide-react'
+import { BarChart2, GitCompare, Network } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { Proyecto } from '@/types'
 
-// Lazy-load de componentes con SSR:false (gantt-task-react no es SSR-compatible)
-// Los propios componentes hacen su propio dynamic import interno,
-// pero también lazy-cargamos en este nivel para no parsear en bundle del servidor.
+// Lazy-load de componentes con SSR:false
 const GanttChart = dynamic(
   () => import('@/components/cronograma/GanttChart').then((m) => ({ default: m.GanttChart })),
   {
@@ -32,6 +29,14 @@ const TrackingGantt = dynamic(
   },
 )
 
+const NetworkDiagram = dynamic(
+  () => import('@/components/cronograma/NetworkDiagram').then((m) => ({ default: m.NetworkDiagram })),
+  {
+    ssr: false,
+    loading: () => <div className="h-64 animate-pulse bg-muted rounded-md" />,
+  },
+)
+
 // -------------------------------------------------------
 // TIPOS
 // -------------------------------------------------------
@@ -40,11 +45,12 @@ interface TabCronogramaProps {
   proyecto: Proyecto
 }
 
-type SubTab = 'gantt' | 'tracking'
+type SubTab = 'gantt' | 'tracking' | 'pert'
 
 const SUB_TABS: { id: SubTab; label: string; icon: React.ElementType }[] = [
-  { id: 'gantt',    label: 'Gantt Estándar',   icon: BarChart2 },
-  { id: 'tracking', label: 'Tracking Gantt',   icon: GitCompare },
+  { id: 'gantt',    label: 'Gantt Estándar', icon: BarChart2  },
+  { id: 'tracking', label: 'Tracking Gantt', icon: GitCompare },
+  { id: 'pert',     label: 'PERT / Red',     icon: Network    },
 ]
 
 // -------------------------------------------------------
@@ -81,6 +87,9 @@ export function TabCronograma({ proyecto }: TabCronogramaProps) {
       )}
       {subTab === 'tracking' && (
         <TrackingGantt proyectoId={proyecto.id} altura={500} />
+      )}
+      {subTab === 'pert' && (
+        <NetworkDiagram proyectoId={proyecto.id} altura={520} />
       )}
     </div>
   )
