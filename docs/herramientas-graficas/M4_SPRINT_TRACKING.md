@@ -15,7 +15,7 @@
 | Fase actual | **FASE 4 — Control EVM (datos reales)** |
 | Sprint actual | **Sprint M4-S05** |
 | % completado global | 57% (Sprints S01+S02+S03+S04 ✅) |
-| Último commit M4 | `pendiente` feat(M4): Sprint M4-S04 |
+| Último commit M4 | `fe46f29` feat(M4): Sprint M4-S04 |
 | Branch | `main` |
 
 ---
@@ -121,7 +121,7 @@
 | 3.5 | Agregar sub-tab `PERT / Red` en `TabCronograma.tsx` | ✅ COMPLETADO | — | SubTab 'pert' con ícono Network de lucide-react |
 | 3.6 | Actualizar `src/components/cronograma/index.ts` | ✅ COMPLETADO | — | Exports: NetworkDiagram, NodoCPMCustom, NodoCPMData, usePERTData, PERTData |
 | 3.7 | `npx tsc --noEmit` → 0 errores | ✅ COMPLETADO | — | |
-| 3.8 | `git commit + push` Sprint M4-S04 | ✅ COMPLETADO | pendiente | |
+| 3.8 | `git commit + push` Sprint M4-S04 | ✅ COMPLETADO | fe46f29 | |
 
 ---
 
