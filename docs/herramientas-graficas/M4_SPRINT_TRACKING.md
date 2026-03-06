@@ -15,7 +15,7 @@
 | Fase actual | **FASE 6 — Polish y Export** |
 | Sprint actual | **Sprint M4-S07** |
 | % completado global | 85% (Sprints S01+S02+S03+S04+S05+S06 ✅) |
-| Último commit M4 | `(pendiente)` feat(M4): Sprint M4-S06 |
+| Último commit M4 | `85d3b83` feat(M4): Sprint M4-S06 |
 | Branch | `main` |
 
 ---
@@ -148,12 +148,12 @@
 
 | # | Tarea | Estado | Commit | Notas |
 |---|-------|--------|--------|-------|
-| 5.1 | Extender página `/dashboard` con sección portafolio | ✅ COMPLETADO | (pendiente) | Sección "Portafolio EVM" con BubbleChart + RiskMatrix en xl:grid-cols-2 |
-| 5.2 | `BubbleChartPortafolio.tsx` con datos reales (`useProyectos` + `kpisDashboard`) | ✅ COMPLETADO | (pendiente) | Filtra `todosProyectos` con `!!kpisDashboard`; fallback mock cuando vacío |
-| 5.3 | `RiskMatrixHeatmap` en modo portafolio (todos los proyectos) | ✅ COMPLETADO | (pendiente) | `flatMap(p.riesgos)` de proyectos activos; `modo="portafolio"` |
+| 5.1 | Extender página `/dashboard` con sección portafolio | ✅ COMPLETADO | 85d3b83 | Sección "Portafolio EVM" con BubbleChart + RiskMatrix en xl:grid-cols-2 |
+| 5.2 | `BubbleChartPortafolio.tsx` con datos reales (`useProyectos` + `kpisDashboard`) | ✅ COMPLETADO | 85d3b83 | Filtra `todosProyectos` con `!!kpisDashboard`; fallback mock cuando vacío |
+| 5.3 | `RiskMatrixHeatmap` en modo portafolio (todos los proyectos) | ✅ COMPLETADO | 85d3b83 | `flatMap(p.riesgos)` de proyectos activos; `modo="portafolio"` |
 | 5.4 | Cloud Function `onTareaWrite` → actualiza `kpisDashboard` en proyecto | ⏭️ BLOQUEADO | — | Diferido a S07/post — requiere Firebase Functions configurado |
-| 5.5 | `npx tsc --noEmit` → 0 errores | ✅ COMPLETADO | (pendiente) | |
-| 5.6 | `git commit + push` Sprint M4-S06 | ✅ COMPLETADO | (pendiente) | |
+| 5.5 | `npx tsc --noEmit` → 0 errores | ✅ COMPLETADO | 85d3b83 | |
+| 5.6 | `git commit + push` Sprint M4-S06 | ✅ COMPLETADO | 85d3b83 | |
 
 ---
 
