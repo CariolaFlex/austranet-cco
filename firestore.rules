@@ -2,18 +2,27 @@ rules_version = '2';
 
 // ============================================================
 // Austranet CCO — Reglas de Seguridad Firestore
-// Versión: 2.0 (Sprint Capa Transversal — T-01 a T-06)
-// Última actualización: 2026-02-27
+// Versión: 3.0 (pre-MVP — M4 y M5 cubiertos, fallback seguro)
+// Última actualización: 2026-03-06
 //
-// POLÍTICA: Solo usuarios autenticados del sistema CCO
-//           pueden leer y escribir en la base de datos.
-//           Reglas granulares por colección.
+// POLÍTICA:
+//   - Toda lectura requiere autenticación.
+//   - Toda escritura requiere autenticación como mínimo.
+//   - Colecciones de administración exigen rol admin/superadmin.
+//   - El fallback bloquea writes de colecciones no listadas.
+//
+// VERIFICACIÓN DE ROL:
+//   Los roles se almacenan en /usuarios/{uid}.data.rol (no en custom claims).
+//   La función isAdmin() los consulta con get() — 1 read extra por operación write.
 //
 // COLECCIONES:
 //   M1: usuarios, entidades, glosario, historial
-//   M2: proyectos, repositorios_configuracion
+//   M2: proyectos (+ subcols: historial, lineas_base, snapshots_evm),
+//       repositorios_configuracion
 //   M3: srs, requerimientos, sesiones_entrevista, escenarios,
 //       casos_prueba, terminos_dominio_srs
+//   M4: tareas (top-level)
+//   M5: apus, catalogo_insumos
 //   T:  notificaciones, auditoria, configuracion, configuracion_dashboard
 // ============================================================
 
@@ -23,18 +32,27 @@ service cloud.firestore {
     // --------------------------------------------------------
     // Funciones auxiliares
     // --------------------------------------------------------
+
     function isAuthenticated() {
       return request.auth != null;
+    }
+
+    // Verifica rol admin o superadmin consultando /usuarios/{uid}.
+    // El documento debe existir; si no existe, devuelve false (no lanza error).
+    function isAdmin() {
+      return isAuthenticated()
+        && exists(/databases/$(database)/documents/usuarios/$(request.auth.uid))
+        && get(/databases/$(database)/documents/usuarios/$(request.auth.uid)).data.rol
+             in ['admin', 'superadmin'];
     }
 
     // --------------------------------------------------------
     // MÓDULO 0 — Usuarios
     // --------------------------------------------------------
     match /usuarios/{userId} {
-      // Todos los usuarios autenticados pueden leer cualquier documento de usuarios.
-      // Necesario para: panel de admin, búsqueda de usuarios, asignación de roles.
+      // Todos los usuarios autenticados pueden leer (panel admin, asignación de roles).
       allow read: if isAuthenticated();
-      // Solo el propio usuario puede escribir su documento (perfil, preferencias).
+      // Solo el propio usuario puede escribir su perfil.
       allow write: if isAuthenticated() && request.auth.uid == userId;
     }
 
@@ -65,6 +83,18 @@ service cloud.firestore {
         allow read: if isAuthenticated();
         allow create: if isAuthenticated();
         allow update, delete: if false; // Inmutable (M2-04)
+      }
+
+      // M4 — Líneas base de planificación (subcol de proyecto)
+      match /lineas_base/{lineaId} {
+        allow read: if isAuthenticated();
+        allow write: if isAuthenticated();
+      }
+
+      // M4 — Snapshots EVM semanales (subcol de proyecto, upsert por fecha)
+      match /snapshots_evm/{snapshotId} {
+        allow read: if isAuthenticated();
+        allow write: if isAuthenticated();
       }
     }
 
@@ -101,38 +131,64 @@ service cloud.firestore {
     }
 
     // --------------------------------------------------------
+    // MÓDULO 4 — Tareas (top-level, FK proyectoId)
+    // --------------------------------------------------------
+    match /tareas/{tareaId} {
+      // Cualquier usuario autenticado puede leer y escribir tareas.
+      // La verificación de pertenencia al proyecto se hace en la capa de servicio.
+      allow read, write: if isAuthenticated();
+    }
+
+    // --------------------------------------------------------
+    // MÓDULO 5 — APU (Análisis de Precios Unitarios)
+    // --------------------------------------------------------
+    match /apus/{apuId} {
+      // Cualquier usuario autenticado puede leer y escribir APUs.
+      // La verificación de pertenencia al proyecto se hace en la capa de servicio.
+      allow read, write: if isAuthenticated();
+    }
+
+    // Catálogo global de insumos — write restringido a admin/superadmin
+    match /catalogo_insumos/{insumoId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+
+    // --------------------------------------------------------
     // T-02 — Notificaciones
     // --------------------------------------------------------
     match /notificaciones/{docId} {
-      // resource == null permite queries de colección (Firestore no puede evaluar
-      // resource.data en ese contexto). En lecturas de documento individual,
-      // resource.data.destinatarios restringe al destinatario correcto.
-      allow read: if isAuthenticated() && (resource == null || request.auth.uid in resource.data.destinatarios);
+      // resource == null cubre queries de colección (Firestore no evalúa
+      // resource.data en ese contexto). En lectura de documento individual
+      // se verifica que el uid esté en destinatarios.
+      allow read: if isAuthenticated()
+        && (resource == null || request.auth.uid in resource.data.destinatarios);
       allow create: if isAuthenticated();
-      allow update: if isAuthenticated() && (resource == null || request.auth.uid in resource.data.destinatarios);
+      allow update: if isAuthenticated()
+        && (resource == null || request.auth.uid in resource.data.destinatarios);
       allow delete: if false;
     }
 
     // --------------------------------------------------------
-    // T-03 — Auditoría (write-only absoluto)
+    // T-03 — Auditoría (append-only, inmutable)
     // --------------------------------------------------------
     match /auditoria/{docId} {
-      // Solo admin/superadmin pueden leer (en fase beta, todos autenticados)
+      // Todos los usuarios autenticados pueden leer logs de auditoría.
       allow read: if isAuthenticated();
-      // Cualquier usuario autenticado puede crear entradas de auditoría
+      // Cualquier usuario autenticado puede crear entradas (desde servicios).
       allow create: if isAuthenticated();
-      // NUNCA modificar ni eliminar (inmutable por diseño)
+      // Nunca modificar ni eliminar — inmutabilidad garantizada por reglas.
       allow update, delete: if false;
     }
 
     // --------------------------------------------------------
-    // T-06 — Configuración del sistema
+    // T-06 — Configuración del sistema — write solo admin/superadmin
     // --------------------------------------------------------
     match /configuracion/{docId} {
-      // Todos los usuarios autenticados pueden leer (para modo mantenimiento, etc.)
+      // Todos los usuarios autenticados pueden leer (modo mantenimiento, versión, etc.)
       allow read: if isAuthenticated();
-      // Solo admin/superadmin pueden escribir (regla en código, no en claim)
-      allow write: if isAuthenticated();
+      // Solo admin/superadmin pueden modificar la configuración.
+      allow write: if isAdmin();
     }
 
     // --------------------------------------------------------
@@ -143,12 +199,12 @@ service cloud.firestore {
     }
 
     // --------------------------------------------------------
-    // FALLBACK para colecciones no listadas explícitamente
-    // DEV: Permite acceso a usuarios autenticados para no bloquear
-    // funcionalidades en desarrollo. TODO: revisar en producción.
+    // FALLBACK — read permitido para autenticados; write bloqueado.
+    // Toda colección nueva DEBE tener regla explícita antes de producción.
     // --------------------------------------------------------
     match /{document=**} {
-      allow read, write: if request.auth != null;
+      allow read: if request.auth != null;
+      allow write: if false;
     }
   }
 }

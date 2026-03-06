@@ -24,7 +24,7 @@ import { auditoriaService } from '@/services/auditoria.service'
 import type { EntradaAuditoria } from '@/types'
 import { cn } from '@/lib/utils'
 
-const MODULOS = ['', 'M1', 'M2', 'M3', 'T'] as const
+const MODULOS = ['', 'M1', 'M2', 'M3', 'M4', 'M5', 'T'] as const
 
 const RESULTADO_STYLE = {
   exito: 'text-green-700 bg-green-50 border-green-200 dark:bg-green-950/30',
