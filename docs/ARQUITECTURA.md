@@ -152,6 +152,7 @@ await setDoc(ref, removeUndefined(payload)) // no guardar undefined
 | M2 — Proyectos | Wizard de creación, línea base, hitos, riesgos, repositorio config | `proyectos` | ✅ Completo |
 | M3 — Alcance/SRS | Requerimientos funcionales/no-funcionales, trazabilidad | `srs` | ✅ Completo |
 | M4 — Cronograma + Control | Gantt, PERT/CPM, EVM, Portafolio | `tareas`, `proyectos/{id}/snapshots_evm`, `proyectos/{id}/lineas_base` | ✅ Completo (v4.0) |
+| M5 — APU | Análisis de Precios Unitarios: partidas, insumos, vinculación Tarea↔APU | `apus` | 🔄 En desarrollo (M5-S01 completo) |
 | T — Transversal | Auth, Notificaciones, Auditoría, Búsqueda, Dashboard, Config | `usuarios`, `auditoria`, `configuracion` | ✅ Completo |
 
 ---
@@ -179,9 +180,22 @@ Firestore: proyectos[]
 
 ---
 
-## 7. Próximos Pasos (Post-M4)
+## 7. Próximos Pasos
 
-- **M5 — APU:** Análisis de Precios Unitarios (por definir)
+### M5 — APU (En progreso)
+
+**M5-S01 ✅ (commit 8ea6f90):** Capa de datos completa
+- `apus/` colección Firestore: top-level, FK `proyectoId`, partidas embebidas
+- `apu.service.ts`: CRUD APU + CRUD partidas/insumos con full-replace (ADR-010)
+- `tareas.service.ts` extendido: `vincularAPU()` + `desvincularAPU()`
+- `useAPU.ts`: 16 hooks TanStack Query (queries + mutations APU/Partida/Insumo/Vinculación)
+- `Tarea` extendida: `apuId?`, `apuPartidaId?`, `cantidad?`, `costoUnitarioAPU?`
+
+**M5-S02 (pendiente):** UI — TablaAPUs, FormularioAPU, TablaPartidas, TablaInsumos, modal vinculación Tarea↔APU
+
+**M5-S03 (pendiente):** Catálogo de insumos global, reportes de costo APU vs EAC
+
+### Otros pendientes
 - **Cloud Functions:** `scheduledEVMSnapshot` (snapshot semanal automático) + `onTareaWrite` (actualiza `kpisDashboard`)
 - **Tests:** Unitarios para `cpm.ts` y `evmService.calcularKPIsActuales`
 - **Performance:** Paginación en tablas grandes, virtualización en Gantt >200 tareas
