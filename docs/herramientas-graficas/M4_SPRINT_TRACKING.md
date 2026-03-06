@@ -27,7 +27,7 @@
 | ✅ COMPLETADO | Implementado, con 0 errores TS, pusheado |
 | 🔄 EN PROGRESO | En este chat/sesión actual |
 | 🔲 PENDIENTE | No iniciado |
-| ⏭️ BLOQUEADO | Depende de otro ítem a4a6cb5 |
+| ⏭️ BLOQUEADO | Depende de otro ítem pendiente |
 | ⚠️ REVISIÓN | Completado pero requiere revisión/testing |
 
 ---
