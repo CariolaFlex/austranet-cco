@@ -144,11 +144,15 @@ export const tareasService = {
     await updateDoc(doc(db, COLECCION, id), updateData)
   },
 
-  /** Actualiza campos CPM cacheados (ES, EF, LS, LF, holguras, esCritica). */
+  /**
+   * Actualiza campos CPM cacheados (ES, EF, LS, LF, holguras, esCritica).
+   * ES/EF/LS/LF son números enteros de días desde el día 0 del proyecto,
+   * consistente con ResultadoNodoCPM en src/lib/cpm.ts y Tarea en types/index.ts.
+   */
   updateCPMCache: async (
     id: string,
     cpm: {
-      es?: Date; ef?: Date; ls?: Date; lf?: Date
+      es?: number; ef?: number; ls?: number; lf?: number
       holguraTotal?: number; holguraLibre?: number; esCritica: boolean
     },
   ): Promise<void> => {

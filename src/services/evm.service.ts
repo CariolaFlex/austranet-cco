@@ -9,7 +9,7 @@ import {
   doc,
   getDoc,
   getDocs,
-  addDoc,
+  setDoc,
   updateDoc,
   query,
   orderBy,
@@ -163,32 +163,38 @@ export const evmService = {
       creadoEn: Timestamp.now(),
     })
 
-    // Upsert: si ya existe el snapshot de esta semana, actualiza; si no, crea.
+    // Upsert idempotente por semana: el ID del documento ES la fecha del lunes.
+    // setDoc con merge:false sobreescribe todo; si ya existe preservamos creadoEn original.
     const ref = collection(db, COLECCION_PROYECTOS, proyectoId, SUBCOLECCION_SNAPSHOTS)
-    const existingDoc = doc(ref, snapshotId)
-    const existing = await getDoc(existingDoc)
+    const snapshotRef = doc(ref, snapshotId)
+    const existing = await getDoc(snapshotRef)
 
-    if (existing.exists()) {
-      await updateDoc(existingDoc, { ...docData, creadoEn: existing.data().creadoEn })
-    } else {
-      await addDoc(collection(db, COLECCION_PROYECTOS, proyectoId, SUBCOLECCION_SNAPSHOTS), {
-        ...docData,
-        id: snapshotId,
-      })
-    }
+    const dataToWrite = existing.exists()
+      ? { ...docData, creadoEn: existing.data().creadoEn }  // preservar fecha de creación original
+      : docData
 
-    return docToSnapshot(snapshotId, docData)
+    await setDoc(snapshotRef, dataToWrite)
+
+    return docToSnapshot(snapshotId, dataToWrite)
   },
 
   /**
    * Calcula los KPIs actuales desde el array de tareas (sin guardar snapshot).
    * Útil para mostrar valores en tiempo real antes del próximo snapshot semanal.
+   *
+   * @param opciones.fechaFinEstimada  Fecha de fin del proyecto (del wizard M2-01).
+   *   Si se omite, se infiere como el máximo fechaFinPlaneada de las tareas.
+   * @param opciones.fechaFinBaseline  Fecha de fin del plan original (línea base activa).
+   *   Si se provee, desviacionDias = fechaFinEstimada - fechaFinBaseline (+ = retraso).
    */
   calcularKPIsActuales: (
     tareas: Tarea[],
     bac: number,
     fecha: Date = new Date(),
+    opciones?: { fechaFinEstimada?: Date; fechaFinBaseline?: Date },
   ): Omit<KPIsDashboard, 'actualizadoEn'> => {
+    const MS_POR_DIA = 86_400_000
+
     const ev = calcularEVDesdeTareas(tareas)
     const ac = calcularACDesdeTareas(tareas)
     const pv = calcularPVDesdeTareas(tareas, fecha)
@@ -204,6 +210,24 @@ export const evmService = {
     const pctAvanceTareas = tareas.length > 0 ? (completadas / tareas.length) * 100 : 0
     const pctAvancePonderado = bac > 0 ? (ev / bac) * 100 : 0
 
+    // diasRestantes: desde hoy hasta la fecha de fin del proyecto.
+    // Prioridad: 1) fechaFinEstimada del proyecto, 2) max fechaFinPlaneada de las tareas.
+    const fechaFin =
+      opciones?.fechaFinEstimada ??
+      (tareas.length > 0
+        ? new Date(Math.max(...tareas.map((t) => t.fechaFinPlaneada.getTime())))
+        : fecha)
+    const diasRestantes = Math.max(
+      0,
+      Math.ceil((fechaFin.getTime() - fecha.getTime()) / MS_POR_DIA),
+    )
+
+    // desviacionDias: retraso vs línea base (positivo = retraso, negativo = adelanto).
+    // Solo calculable si se provee la fecha de fin de la línea base activa.
+    const desviacionDias = opciones?.fechaFinBaseline
+      ? Math.round((fechaFin.getTime() - opciones.fechaFinBaseline.getTime()) / MS_POR_DIA)
+      : 0
+
     return {
       spi,
       cpi,
@@ -214,8 +238,8 @@ export const evmService = {
       bac,
       pctAvanceTareas: Math.round(pctAvanceTareas * 10) / 10,
       pctAvancePonderado: Math.round(pctAvancePonderado * 10) / 10,
-      diasRestantes: 0,       // Se calcula en el componente desde fechaFinEstimada
-      desviacionDias: 0,      // Se calcula comparando con línea base
+      diasRestantes,
+      desviacionDias,
       semaforoGeneral: calcularSemaforoGeneral(semaforoSPI, semaforoCPI),
       semaforoCronograma: semaforoSPI === 'sin_datos' ? 'verde' : semaforoSPI,
       semaforoCostos: semaforoCPI === 'sin_datos' ? 'verde' : semaforoCPI,
