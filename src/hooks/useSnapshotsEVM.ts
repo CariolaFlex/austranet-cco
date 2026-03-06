@@ -42,17 +42,30 @@ export function useSnapshotEVMActual(proyectoId: string) {
 /**
  * KPIs EVM calculados en tiempo real desde tareas (sin guardar snapshot).
  * Útil para mostrar valores actualizados al instante sin esperar el cron semanal.
+ *
+ * @param opciones.fechaFinEstimada  Fecha de fin del proyecto (del wizard M2-01).
+ *   Necesaria para calcular diasRestantes correctamente.
+ * @param opciones.fechaFinBaseline  Fecha de fin de la línea base activa.
+ *   Necesaria para calcular desviacionDias.
  */
 export function useKPIsEVMActuales(
   tareas: Tarea[] | undefined,
   bac: number,
   proyectoId: string,
+  opciones?: { fechaFinEstimada?: Date; fechaFinBaseline?: Date },
 ) {
   return useQuery({
-    queryKey: ['snapshots_evm', proyectoId, 'kpis_live', bac],
+    queryKey: [
+      'snapshots_evm',
+      proyectoId,
+      'kpis_live',
+      bac,
+      opciones?.fechaFinEstimada?.toISOString(),
+      opciones?.fechaFinBaseline?.toISOString(),
+    ],
     queryFn: () => {
       if (!tareas || tareas.length === 0) return null
-      return evmService.calcularKPIsActuales(tareas, bac)
+      return evmService.calcularKPIsActuales(tareas, bac, new Date(), opciones)
     },
     enabled: !!proyectoId && !!tareas && bac > 0,
     staleTime: 60 * 1000,   // 1 minuto (cambia según avance de tareas)

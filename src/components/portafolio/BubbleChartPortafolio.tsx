@@ -19,7 +19,7 @@ import {
 } from 'recharts'
 import { ChartContainer } from '@/components/common/ChartContainer'
 import { SEMAFORO_COLOR } from '@/constants/evm'
-import type { Proyecto, KPIsDashboard } from '@/types'
+import type { ProyectoConKPIs } from '@/types'
 
 // -------------------------------------------------------
 // TIPOS
@@ -28,10 +28,6 @@ import type { Proyecto, KPIsDashboard } from '@/types'
 type EjeX = 'riesgo' | 'spi' | 'desviacionDias'
 type EjeY = 'roi' | 'cpi' | 'pctAvance'
 type Tamano = 'presupuesto' | 'uniform'
-
-export interface ProyectoConKPIs extends Proyecto {
-  kpisDashboard: KPIsDashboard
-}
 
 // -------------------------------------------------------
 // HELPERS

@@ -83,5 +83,26 @@ export function getCurrentUser(): User | null {
   return auth.currentUser;
 }
 
+/**
+ * Retorna el UID del usuario autenticado.
+ * Lanza error si no hay sesión activa — úsalo únicamente dentro de operaciones
+ * de escritura en Firestore que requieren autenticación previa.
+ */
+export function getCurrentUserId(): string {
+  const auth = getFirebaseAuth();
+  const uid = auth.currentUser?.uid;
+  if (!uid) throw new Error('Usuario no autenticado');
+  return uid;
+}
+
+/**
+ * Retorna el nombre visible del usuario autenticado (displayName | email | 'Sistema').
+ * Nunca lanza — si no hay sesión devuelve 'Sistema'.
+ */
+export function getCurrentUserName(): string {
+  const auth = getFirebaseAuth();
+  return auth.currentUser?.displayName || auth.currentUser?.email || 'Sistema';
+}
+
 // Export auth instance for direct access
 export { auth };

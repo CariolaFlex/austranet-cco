@@ -18,7 +18,7 @@ import {
 } from 'firebase/firestore'
 import { v4 as uuidv4 } from 'uuid'
 import { getFirestoreDb, convertTimestamps, removeUndefined } from '@/lib/firebase/firestore'
-import { getFirebaseAuth } from '@/lib/firebase/auth'
+import { getCurrentUserId, getCurrentUserName, getFirebaseAuth } from '@/lib/firebase/auth'
 import { entidadesService } from '@/services/entidades.service'
 import { repositorioConfiguracionService } from '@/services/repositorio-configuracion.service'
 import { alcanceService } from '@/services/alcance.service'
@@ -40,18 +40,6 @@ const COLECCION = 'proyectos'
 // -------------------------------------------------------
 // HELPERS INTERNOS
 // -------------------------------------------------------
-
-function getCurrentUserId(): string {
-  const auth = getFirebaseAuth()
-  const uid = auth.currentUser?.uid
-  if (!uid) throw new Error('Usuario no autenticado')
-  return uid
-}
-
-function getCurrentUserName(): string {
-  const auth = getFirebaseAuth()
-  return auth.currentUser?.displayName || auth.currentUser?.email || 'Sistema'
-}
 
 async function registrarHistorial(
   proyectoId: string,

@@ -18,21 +18,10 @@ import {
   writeBatch,
 } from 'firebase/firestore'
 import { getFirestoreDb, convertTimestamps, removeUndefined } from '@/lib/firebase/firestore'
-import { getFirebaseAuth } from '@/lib/firebase/auth'
+import { getCurrentUserId } from '@/lib/firebase/auth'
 import type { LineaBase, TareaSnapshot, Tarea } from '@/types'
 
 const COLECCION = 'lineas_base'
-
-// -------------------------------------------------------
-// HELPERS INTERNOS
-// -------------------------------------------------------
-
-function getCurrentUserId(): string {
-  const auth = getFirebaseAuth()
-  const uid = auth.currentUser?.uid
-  if (!uid) throw new Error('Usuario no autenticado')
-  return uid
-}
 
 function docToLineaBase(id: string, data: Record<string, unknown>): LineaBase {
   const converted = convertTimestamps({ id, ...data }) as LineaBase

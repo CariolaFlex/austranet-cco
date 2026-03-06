@@ -398,6 +398,15 @@ export interface KPIsDashboard {
 export type CrearTareaDTO = Omit<Tarea, 'id' | 'creadoEn' | 'actualizadoEn' | 'creadoPor' | 'esCritica' | 'es' | 'ef' | 'ls' | 'lf' | 'holguraTotal' | 'holguraLibre'>
 export type ActualizarTareaDTO = Partial<Omit<Tarea, 'id' | 'creadoEn' | 'creadoPor' | 'proyectoId'>>
 
+/**
+ * Proyecto con KPIs EVM confirmados (kpisDashboard no-nullable).
+ * Se usa en BubbleChartPortafolio y en cualquier vista de portafolio
+ * que requiera datos EVM completos para visualizar.
+ */
+export interface ProyectoConKPIs extends Proyecto {
+  kpisDashboard: KPIsDashboard
+}
+
 // ---------- ALCANCE / SRS (MÓDULO 3) ----------
 
 // ---------- ENUMERACIONES M3 (Sprint M3-FULL) ----------

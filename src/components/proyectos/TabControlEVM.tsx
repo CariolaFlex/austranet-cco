@@ -86,6 +86,7 @@ export function TabControlEVM({ proyecto }: TabControlEVMProps) {
     tareas,
     bac,
     proyecto.id,
+    { fechaFinEstimada: proyecto.fechaFinEstimada ?? undefined },
   )
 
   const { mutate: capturarSnapshot, isPending: capturando } = useCrearSnapshotDesdeTareas()

@@ -16,21 +16,10 @@ import {
   Timestamp,
 } from 'firebase/firestore'
 import { getFirestoreDb, convertTimestamps, removeUndefined } from '@/lib/firebase/firestore'
-import { getFirebaseAuth } from '@/lib/firebase/auth'
+import { getCurrentUserId } from '@/lib/firebase/auth'
 import type { Tarea, CrearTareaDTO, ActualizarTareaDTO, EstadoTarea } from '@/types'
 
 const COLECCION = 'tareas'
-
-// -------------------------------------------------------
-// HELPERS INTERNOS
-// -------------------------------------------------------
-
-function getCurrentUserId(): string {
-  const auth = getFirebaseAuth()
-  const uid = auth.currentUser?.uid
-  if (!uid) throw new Error('Usuario no autenticado')
-  return uid
-}
 
 function docToTarea(id: string, data: Record<string, unknown>): Tarea {
   const converted = convertTimestamps({ id, ...data }) as Tarea
