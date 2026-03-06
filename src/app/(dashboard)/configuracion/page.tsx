@@ -9,7 +9,7 @@ import { useState, useEffect } from 'react'
 import {
   Building2, User, Users, Save, Loader2,
   Settings2, ToggleLeft, ToggleRight, AlertTriangle,
-  ArrowRight,
+  ArrowRight, Package,
 } from 'lucide-react'
 import Link from 'next/link'
 import { PageHeader } from '@/components/common/PageHeader'
@@ -240,6 +240,33 @@ export default function ConfiguracionPage() {
             )}
           </CardContent>
         </Card>
+
+        {/* ── Catálogo de insumos APU — solo admin/superadmin ── */}
+        {isAdmin && (
+          <Card>
+            <CardHeader className="pb-3">
+              <div className="flex items-center gap-2">
+                <div className="flex h-7 w-7 items-center justify-center rounded-md bg-primary/10">
+                  <Package className="h-4 w-4 text-primary" />
+                </div>
+                <div>
+                  <CardTitle className="text-base font-semibold">Catálogo de insumos APU</CardTitle>
+                  <p className="text-sm text-muted-foreground">
+                    Gestiona el catálogo global de materiales, mano de obra, equipos y subcontratos.
+                  </p>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <Link
+                href="/configuracion/catalogo-insumos"
+                className="inline-flex items-center gap-2 text-sm text-primary hover:underline font-medium"
+              >
+                Ir al catálogo de insumos <ArrowRight className="h-4 w-4" />
+              </Link>
+            </CardContent>
+          </Card>
+        )}
 
         {/* ── Sistema — solo admin/superadmin ──────── */}
         {isAdmin && (

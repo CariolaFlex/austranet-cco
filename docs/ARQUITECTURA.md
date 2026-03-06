@@ -60,7 +60,7 @@ src/
 │   └── …                     # useEntidades, useAlcance, etc.
 │
 ├── services/                 # Capa de acceso a Firestore (sin estado)
-│   ├── index.ts               # Barrel con los 11 servicios
+│   ├── index.ts               # Barrel con los 12 servicios
 │   ├── tareas.service.ts      # CRUD tareas + CPM cache update
 │   ├── evm.service.ts         # Snapshots EVM + cálculo KPIs
 │   ├── proyectos.service.ts   # CRUD proyectos + kpisDashboard update
@@ -74,6 +74,10 @@ src/
 │   │                          #   removeUndefined
 │   ├── cpm.ts                 # Algoritmo CPM client-side (BFS forward/backward)
 │   ├── export-utils.ts        # exportarGanttPDF, exportarEVMCSV
+│   ├── apu/
+│   │   ├── exportarAPUPDF.ts  # jsPDF lazy — portada + tablas partidas/insumos
+│   │   ├── exportarAPUExcel.ts# CSV nativo BOM+';' — jerarquía APU/PARTIDA/INSUMO
+│   │   └── index.ts           # re-exports
 │   └── utils.ts               # cn(), formatDate, etc.
 │
 ├── types/
@@ -125,7 +129,7 @@ const data = convertTimestamps(raw)         // Timestamp → Date
 await setDoc(ref, removeUndefined(payload)) // no guardar undefined
 ```
 
-- **Colecciones top-level:** `entidades`, `proyectos`, `tareas`, `srs`, `usuarios`, `auditoria`, `configuracion`
+- **Colecciones top-level:** `entidades`, `proyectos`, `tareas`, `srs`, `usuarios`, `auditoria`, `configuracion`, `apus`, `catalogo_insumos`
 - **Subcol. historial:** `proyectos/{id}/snapshots_evm`, `proyectos/{id}/lineas_base`
 - **Soft delete:** tareas nunca se borran — `estado: 'suspendida'`
 
@@ -152,7 +156,7 @@ await setDoc(ref, removeUndefined(payload)) // no guardar undefined
 | M2 — Proyectos | Wizard de creación, línea base, hitos, riesgos, repositorio config | `proyectos` | ✅ Completo |
 | M3 — Alcance/SRS | Requerimientos funcionales/no-funcionales, trazabilidad | `srs` | ✅ Completo |
 | M4 — Cronograma + Control | Gantt, PERT/CPM, EVM, Portafolio | `tareas`, `proyectos/{id}/snapshots_evm`, `proyectos/{id}/lineas_base` | ✅ Completo (v4.0) |
-| M5 — APU | Análisis de Precios Unitarios: partidas, insumos, vinculación Tarea↔APU | `apus` | 🔄 En desarrollo (M5-S01 completo) |
+| M5 — APU | APU: partidas, insumos, exportación PDF/CSV, catálogo global de insumos, vinculación Tarea↔APU | `apus`, `catalogo_insumos` | 🔄 En desarrollo (M5-S03 completo) |
 | T — Transversal | Auth, Notificaciones, Auditoría, Búsqueda, Dashboard, Config | `usuarios`, `auditoria`, `configuracion` | ✅ Completo |
 
 ---
@@ -191,9 +195,24 @@ Firestore: proyectos[]
 - `useAPU.ts`: 16 hooks TanStack Query (queries + mutations APU/Partida/Insumo/Vinculación)
 - `Tarea` extendida: `apuId?`, `apuPartidaId?`, `cantidad?`, `costoUnitarioAPU?`
 
-**M5-S02 (pendiente):** UI — TablaAPUs, FormularioAPU, TablaPartidas, TablaInsumos, modal vinculación Tarea↔APU
+**M5-S02 ✅ (commit f9d42af):** UI completa
+- `TablaInsumos`, `FormularioPartida`, `TablaPartidas`, `FormularioAPU`, `APUResumenCostos`
+- `APUCard`, `APUList`, `VincularAPUModal` — integrados en `TabAPU` dentro de ProyectoDetalle
+- Modal de creación/edición de partidas con cálculo en tiempo real (GG% + utilidad%)
 
-**M5-S03 (pendiente):** Catálogo de insumos global, reportes de costo APU vs EAC
+**M5-S03 ✅ (commit actual):** Exportación + Catálogo global de insumos
+- `src/lib/apu/exportarAPUPDF.ts` — jsPDF lazy: portada + tablas por partida + resumen final
+- `src/lib/apu/exportarAPUExcel.ts` — CSV nativo BOM+';': jerarquía APU/PARTIDA/INSUMO (23 cols)
+- Botón "Exportar" (Dropdown PDF / CSV) en `TabAPU` — datos de TanStack Query, sin nueva query
+- `catalogo_insumos/` colección Firestore: catálogo global de insumos con soft-delete
+- `catalogo-insumos.service.ts` + `useCatalogoInsumos.ts` — 4 queries + 4 mutations
+- `CatalogoInsumosBuscador` — modal de búsqueda reactiva integrado en `FormularioPartida`
+- `CatalogoInsumosAdmin` — CRUD completo con Zod/react-hook-form (solo admin/superadmin)
+- Ruta `/configuracion/catalogo-insumos` + card en `/configuracion` (admin-only)
+- Bridge EVM: `insumo.catalogoInsumoId` para trazabilidad futura catálogo↔partida
+
+**Próximos sprints M5:**
+- M5-S04: Reportes de costo APU vs EAC (comparación real vs planificado)
 
 ### Otros pendientes
 - **Cloud Functions:** `scheduledEVMSnapshot` (snapshot semanal automático) + `onTareaWrite` (actualiza `kpisDashboard`)

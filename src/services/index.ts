@@ -18,7 +18,8 @@ export { lineasBaseService } from './lineas-base.service'
 export { evmService } from './evm.service'
 
 // Módulo 5 — APU (Análisis de Precios Unitarios)
-export { apuService } from './apu.service'
+export { apuService }              from './apu.service'
+export { catalogoInsumosService }  from './catalogo-insumos.service'
 
 // Capa Transversal
 export { notificacionesService } from './notificaciones.service'

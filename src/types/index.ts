@@ -1585,6 +1585,50 @@ export interface FiltrosAPU {
   busqueda?: string
 }
 
+// ============================================================
+// MÓDULO 5 — CATÁLOGO GLOBAL DE INSUMOS (Sprint M5-S03)
+// Colección Firestore: 'catalogo_insumos' (top-level)
+// Permite reutilizar insumos con precios de referencia entre APUs/proyectos.
+// ============================================================
+
+/**
+ * CatalogoInsumo — Insumo maestro en el catálogo global.
+ * El precio es referencial: al usarlo en una partida, el usuario puede ajustarlo.
+ */
+export interface CatalogoInsumo {
+  id: string
+  codigo: string              // Ej: "MAT-001", "MO-042"
+  descripcion: string         // Ej: "Cemento Portland IP 42.5"
+  tipo: CategoriaInsumo       // 'material' | 'mano_de_obra' | 'equipo' | 'subcontrato'
+  unidad: string              // Ej: "kg", "HH", "m³", "gl"
+  precioReferencia: number    // Precio de mercado referencial (orientativo)
+  moneda: string              // ISO 4217: "CLP" | "USD" | "UF"
+  proveedor?: string          // Nombre del proveedor de referencia
+  activo: boolean             // Soft-delete: false = desactivado (no aparece en búsquedas)
+  creadoEn: Date
+  actualizadoEn: Date
+  creadoPor: string
+}
+
+/** DTO para crear un insumo en el catálogo */
+export type CrearCatalogoInsumoDTO = Omit<
+  CatalogoInsumo,
+  'id' | 'creadoEn' | 'actualizadoEn' | 'creadoPor'
+>
+
+/** DTO para actualizar un insumo del catálogo (parcial) */
+export type ActualizarCatalogoInsumoDTO = Partial<
+  Omit<CatalogoInsumo, 'id' | 'creadoEn' | 'creadoPor'>
+>
+
+/** Filtros para búsquedas en el catálogo */
+export interface FiltrosCatalogoInsumo {
+  busqueda?: string           // Búsqueda por descripcion o codigo (prefix)
+  tipo?: CategoriaInsumo
+  moneda?: string
+  soloActivos?: boolean       // Default: true (solo activos)
+}
+
 export const CONFIG_SISTEMA_DEFAULTS: ConfiguracionSistema = {
   version: '1.0.0',
   ultimaModificacion: new Date(0),

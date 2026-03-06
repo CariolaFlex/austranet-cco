@@ -10,12 +10,13 @@
 // ============================================================
 
 import { useState, useEffect, useMemo } from 'react'
-import { X, Save, AlertCircle } from 'lucide-react'
+import { X, Save, AlertCircle, BookOpen } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input, Label } from '@/components/ui/lib'
 import { TablaInsumos } from './TablaInsumos'
+import { CatalogoInsumosBuscador } from './CatalogoInsumosBuscador'
 import { cn } from '@/lib/utils'
-import type { APU, Partida, Insumo, CrearPartidaDTO, ActualizarPartidaDTO } from '@/types'
+import type { APU, Partida, Insumo, CrearPartidaDTO, ActualizarPartidaDTO, CatalogoInsumo } from '@/types'
 
 // -------------------------------------------------------
 // HELPER — cálculo en tiempo real (sin Firestore)
@@ -82,6 +83,7 @@ export function FormularioPartida({
   })
 
   const [errors, setErrors] = useState<Partial<Record<keyof FormState, string>>>({})
+  const [showCatalogoBuscador, setShowCatalogoBuscador] = useState(false)
 
   // Reiniciar si cambia la partida (edición de distinta partida)
   useEffect(() => {
@@ -116,6 +118,28 @@ export function FormularioPartida({
     if (form.utilidadPct < 0 || form.utilidadPct > 100) next.utilidadPct = 'Debe estar entre 0 y 100'
     setErrors(next)
     return Object.keys(next).length === 0
+  }
+
+  /**
+   * Al seleccionar un insumo del catálogo global:
+   *  - crea un nuevo Insumo con los datos del catálogo (precio editable)
+   *  - lo agrega al array de insumos de la partida
+   *  - guarda catalogoInsumoId para trazabilidad
+   */
+  function handleSeleccionarDelCatalogo(catalogoInsumo: CatalogoInsumo) {
+    const nuevoInsumo: Insumo = {
+      id: crypto.randomUUID(),
+      tipo: catalogoInsumo.tipo,
+      descripcion: catalogoInsumo.descripcion,
+      codigo: catalogoInsumo.codigo,
+      unidad: catalogoInsumo.unidad,
+      cantidad: 1,
+      precioUnitario: catalogoInsumo.precioReferencia,
+      subtotal: catalogoInsumo.precioReferencia,      // cantidad=1 → subtotal = precio
+      catalogoInsumoId: catalogoInsumo.id,
+    }
+    handleField('insumos', [...form.insumos, nuevoInsumo])
+    setShowCatalogoBuscador(false)
   }
 
   function handleSubmit(e: React.FormEvent) {
@@ -275,7 +299,19 @@ export function FormularioPartida({
 
           {/* Insumos */}
           <div className="space-y-2">
-            <Label className="text-sm font-medium">Insumos</Label>
+            <div className="flex items-center justify-between">
+              <Label className="text-sm font-medium">Insumos</Label>
+              {!readOnly && (
+                <button
+                  type="button"
+                  onClick={() => setShowCatalogoBuscador(true)}
+                  className="text-xs text-primary hover:text-primary/80 flex items-center gap-1 transition-colors"
+                >
+                  <BookOpen className="h-3.5 w-3.5" />
+                  Buscar en catálogo
+                </button>
+              )}
+            </div>
             <div className="border rounded-md p-3">
               <TablaInsumos
                 insumos={form.insumos}
@@ -305,6 +341,14 @@ export function FormularioPartida({
           )}
         </form>
       </div>
+
+      {/* Catálogo global de insumos — se monta sobre este modal (z-[60]) */}
+      {showCatalogoBuscador && (
+        <CatalogoInsumosBuscador
+          onSeleccionar={handleSeleccionarDelCatalogo}
+          onCerrar={() => setShowCatalogoBuscador(false)}
+        />
+      )}
     </div>
   )
 }
