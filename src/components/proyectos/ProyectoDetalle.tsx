@@ -15,7 +15,7 @@ import {
   ArrowLeft, Pencil, RefreshCw, ExternalLink,
   Users, AlertTriangle, Calendar, DollarSign,
   Clock, CheckCircle, XCircle, AlertCircle,
-  BarChart3, Info, Shield, GitBranch, FileText, GanttChartSquare, TrendingUp,
+  BarChart3, Info, Shield, GitBranch, FileText, GanttChartSquare, TrendingUp, Calculator,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -43,6 +43,7 @@ import { PanelCCBRepositorio } from './PanelCCBRepositorio'
 import { DashboardMetricasProceso } from './DashboardMetricasProceso'
 import { TabCronograma } from './TabCronograma'
 import { TabControlEVM } from './TabControlEVM'
+import { TabAPU } from './TabAPU'
 import type { Proyecto, Entidad, RiesgoProyecto } from '@/types'
 
 // -------------------------------------------------------
@@ -94,6 +95,7 @@ const TABS = [
   { id: 'riesgos', label: 'Riesgos', icon: AlertTriangle },
   { id: 'hitos', label: 'Hitos', icon: Calendar },
   { id: 'presupuesto', label: 'Presupuesto', icon: DollarSign },
+  { id: 'apu', label: 'Presupuesto APU', icon: Calculator },
   { id: 'cronograma', label: 'Cronograma', icon: GanttChartSquare },
   { id: 'control', label: 'Control / EVM', icon: TrendingUp },
   { id: 'alcance', label: 'Alcance / SRS', icon: FileText },
@@ -220,6 +222,7 @@ export function ProyectoDetalle({ proyecto, entidad, onCambiarEstado }: Proyecto
       )}
       {tabActivo === 'hitos' && <TabHitos proyecto={proyecto} />}
       {tabActivo === 'presupuesto' && <TabPresupuesto proyecto={proyecto} />}
+      {tabActivo === 'apu' && <TabAPU proyecto={proyecto} />}
       {tabActivo === 'cronograma' && <TabCronograma proyecto={proyecto} />}
       {tabActivo === 'control' && <TabControlEVM proyecto={proyecto} />}
       {tabActivo === 'alcance' && <TabAlcance proyecto={proyecto} />}

@@ -8,8 +8,10 @@
 
 import { useState } from 'react'
 import dynamic from 'next/dynamic'
-import { BarChart2, GitCompare, Network } from 'lucide-react'
+import { BarChart2, GitCompare, Network, Link2 } from 'lucide-react'
+import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
+import { VincularAPUModal } from '@/components/apu/VincularAPUModal'
 import type { Proyecto } from '@/types'
 
 // Lazy-load de componentes con SSR:false
@@ -59,26 +61,42 @@ const SUB_TABS: { id: SubTab; label: string; icon: React.ElementType }[] = [
 
 export function TabCronograma({ proyecto }: TabCronogramaProps) {
   const [subTab, setSubTab] = useState<SubTab>('gantt')
+  const [showVincularAPU, setShowVincularAPU] = useState(false)
 
   return (
     <div className="space-y-4">
-      {/* Sub-tab selector */}
-      <div className="flex gap-1 border-b">
-        {SUB_TABS.map(({ id, label, icon: Icon }) => (
-          <button
-            key={id}
-            onClick={() => setSubTab(id)}
-            className={cn(
-              'flex items-center gap-2 px-4 py-2 text-sm font-medium whitespace-nowrap border-b-2 transition-colors -mb-px',
-              subTab === id
-                ? 'border-primary text-primary'
-                : 'border-transparent text-muted-foreground hover:text-foreground hover:border-border',
-            )}
+      {/* Sub-tab selector + acciones */}
+      <div className="flex items-center justify-between gap-2 border-b">
+        <div className="flex gap-1">
+          {SUB_TABS.map(({ id, label, icon: Icon }) => (
+            <button
+              key={id}
+              onClick={() => setSubTab(id)}
+              className={cn(
+                'flex items-center gap-2 px-4 py-2 text-sm font-medium whitespace-nowrap border-b-2 transition-colors -mb-px',
+                subTab === id
+                  ? 'border-primary text-primary'
+                  : 'border-transparent text-muted-foreground hover:text-foreground hover:border-border',
+              )}
+            >
+              <Icon className="h-4 w-4" />
+              {label}
+            </button>
+          ))}
+        </div>
+
+        {/* Botón Vincular APU — visible en sub-tab gantt */}
+        {subTab === 'gantt' && (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setShowVincularAPU(true)}
+            className="mb-px shrink-0"
           >
-            <Icon className="h-4 w-4" />
-            {label}
-          </button>
-        ))}
+            <Link2 className="h-4 w-4 mr-1.5" />
+            Vincular APU
+          </Button>
+        )}
       </div>
 
       {/* Contenido */}
@@ -90,6 +108,14 @@ export function TabCronograma({ proyecto }: TabCronogramaProps) {
       )}
       {subTab === 'pert' && (
         <NetworkDiagram proyectoId={proyecto.id} altura={520} />
+      )}
+
+      {/* Modal Vincular APU */}
+      {showVincularAPU && (
+        <VincularAPUModal
+          proyectoId={proyecto.id}
+          onClose={() => setShowVincularAPU(false)}
+        />
       )}
     </div>
   )
