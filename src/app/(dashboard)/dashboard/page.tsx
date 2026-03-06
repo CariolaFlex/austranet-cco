@@ -15,13 +15,16 @@ import {
   TrendingUp,
   AlertTriangle,
   AlertCircle,
+  BarChart3,
 } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
-import { Card, CardContent } from '@/components/ui/card'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { cn } from '@/lib/utils'
 import { useEntidades } from '@/hooks/useEntidades'
 import { useProyectos, useProyectosStats } from '@/hooks/useProyectos'
+import { BubbleChartPortafolio, RiskMatrixHeatmap } from '@/components/portafolio'
+import type { ProyectoConKPIs } from '@/components/portafolio'
 
 // ── Helpers de fecha ──────────────────────────────────────
 function getGreeting(): string {
@@ -95,6 +98,23 @@ export default function DashboardPage() {
         .filter((e) => e.nivelRiesgo === 'alto' || e.nivelRiesgo === 'critico')
         .slice(0, 5),
     [entidades]
+  )
+
+  // Proyectos con KPIs calculados — para BubbleChartPortafolio
+  const proyectosConKPIs = useMemo(
+    () => (todosProyectos ?? []).filter((p) => !!p.kpisDashboard) as ProyectoConKPIs[],
+    [todosProyectos]
+  )
+
+  // Riesgos activos de todos los proyectos activos — para RiskMatrixHeatmap portafolio
+  const riesgosPortafolio = useMemo(
+    () =>
+      (todosProyectos ?? [])
+        .filter((p) =>
+          ['activo_en_definicion', 'activo_en_desarrollo'].includes(p.estado)
+        )
+        .flatMap((p) => p.riesgos ?? []),
+    [todosProyectos]
   )
 
   // Proyectos activos con al menos 1 riesgo materializado
@@ -174,6 +194,33 @@ export default function DashboardPage() {
               </CardContent>
             </Card>
           ))}
+        </div>
+      </section>
+
+      {/* ── Portafolio EVM ───────────────────────────── */}
+      <section>
+        <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+          <BarChart3 className="h-3.5 w-3.5 text-primary" />
+          Portafolio EVM
+        </h2>
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+          <BubbleChartPortafolio
+            proyectos={proyectosConKPIs.length > 0 ? proyectosConKPIs : undefined}
+            isLoading={!todosProyectos}
+            altura={300}
+          />
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-semibold">Matriz de Riesgos — Portafolio</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <RiskMatrixHeatmap
+                riesgos={riesgosPortafolio}
+                modo="portafolio"
+                soloActivos
+              />
+            </CardContent>
+          </Card>
         </div>
       </section>
 
