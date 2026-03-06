@@ -6,6 +6,7 @@
  * Pure React, sin dependencias de chart libraries.
  */
 
+import { memo } from 'react'
 import { CheckCircle2, AlertCircle, XCircle, MinusCircle, TrendingUp, Clock, DollarSign } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/lib'
 import { cn } from '@/lib/utils'
@@ -67,7 +68,7 @@ interface SemaforoPanelProps {
   className?: string
 }
 
-export function SemaforoPanel({ kpis, modo = 'detailed', className }: SemaforoPanelProps) {
+export const SemaforoPanel = memo(function SemaforoPanel({ kpis, modo = 'detailed', className }: SemaforoPanelProps) {
   const compact = modo === 'compact'
 
   if (compact) {
@@ -132,4 +133,4 @@ export function SemaforoPanel({ kpis, modo = 'detailed', className }: SemaforoPa
       </CardContent>
     </Card>
   )
-}
+})

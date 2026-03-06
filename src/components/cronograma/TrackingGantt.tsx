@@ -1,13 +1,13 @@
 'use client'
 
 /**
- * TrackingGantt — M4 · Sprint M4-S03
+ * TrackingGantt — M4 · Sprint M4-S03 + M4-S07 (useMemo + responsive)
  * Gantt de seguimiento: muestra tareas actuales + tareas de línea base (gris).
  * Requiere una línea base activa en el proyecto.
  */
 
 import dynamic from 'next/dynamic'
-import { useState } from 'react'
+import { useState, useMemo, memo } from 'react'
 import { ViewMode } from 'gantt-task-react'
 import 'gantt-task-react/dist/index.css'
 import { AlertCircle } from 'lucide-react'
@@ -43,7 +43,10 @@ interface TrackingGanttProps {
 // COMPONENTE
 // -------------------------------------------------------
 
-export function TrackingGantt({ proyectoId, altura = 450 }: TrackingGanttProps) {
+export const TrackingGantt = memo(function TrackingGantt({
+  proyectoId,
+  altura = 450,
+}: TrackingGanttProps) {
   const [viewMode, setViewMode] = useState<ViewMode>(ViewMode.Week)
   const [mostrarCPM, setMostrarCPM] = useState(true)
   const [filtroEstado, setFiltroEstado] = useState<EstadoTarea | 'todas'>('todas')
@@ -51,25 +54,30 @@ export function TrackingGantt({ proyectoId, altura = 450 }: TrackingGanttProps) 
   const { data: tareas = [], isLoading: loadingTareas } = useTareas(proyectoId)
   const { data: lineaBase, isLoading: loadingLB } = useLineaBaseActiva(proyectoId)
 
-  const tareasFiltradas =
-    filtroEstado === 'todas' ? tareas : tareas.filter((t) => t.estado === filtroEstado)
+  const tareasFiltradas = useMemo(
+    () => (filtroEstado === 'todas' ? tareas : tareas.filter((t) => t.estado === filtroEstado)),
+    [tareas, filtroEstado],
+  )
 
-  const tareasParaGantt = mostrarCPM
-    ? tareasFiltradas
-    : tareasFiltradas.map((t) => ({ ...t, esCritica: false }))
+  const tareasParaGantt = useMemo(
+    () =>
+      mostrarCPM
+        ? tareasFiltradas
+        : tareasFiltradas.map((t) => ({ ...t, esCritica: false })),
+    [tareasFiltradas, mostrarCPM],
+  )
 
   const ganttTasks = useTareasGantt(tareasParaGantt)
   const baselineTasks = useBaselineGanttTasks(lineaBase?.snapshotTareas ?? [])
+  const tareasCriticas = useMemo(() => tareas.filter((t) => t.esCritica).length, [tareas])
 
   const isLoading = loadingTareas || loadingLB
-  const tareasCriticas = tareas.filter((t) => t.esCritica).length
 
-  // Intercalar: primero baseline luego actual para cada tarea
-  // En gantt-task-react no hay modo "baseline" nativo; mostramos en orden alternado
-  const allTasks = [
-    ...baselineTasks,   // Línea base (gris, al final)
-    ...ganttTasks,      // Actuales (coloreados, al inicio)
-  ]
+  // Intercalar: baseline gris al inicio, actuales coloreadas encima
+  const allTasks = useMemo(
+    () => [...baselineTasks, ...ganttTasks],
+    [baselineTasks, ganttTasks],
+  )
 
   if (isLoading) {
     return <div className="h-64 animate-pulse bg-muted rounded-md" />
@@ -118,19 +126,22 @@ export function TrackingGantt({ proyectoId, altura = 450 }: TrackingGanttProps) 
         tareasCriticas={tareasCriticas}
       />
 
+      {/* Responsive: overflowX + minWidth permite scroll horizontal en pantallas pequeñas */}
       <div style={{ height: altura, overflowX: 'auto' }}>
-        <GanttLib
-          tasks={allTasks}
-          viewMode={viewMode}
-          locale="es"
-          ganttHeight={altura}
-          listCellWidth="200px"
-          columnWidth={viewMode === ViewMode.Day ? 40 : viewMode === ViewMode.Week ? 100 : 200}
-          todayColor="rgba(59,130,246,0.1)"
-          barCornerRadius={3}
-          barFill={75}
-        />
+        <div style={{ minWidth: 800 }}>
+          <GanttLib
+            tasks={allTasks}
+            viewMode={viewMode}
+            locale="es"
+            ganttHeight={altura}
+            listCellWidth="200px"
+            columnWidth={viewMode === ViewMode.Day ? 40 : viewMode === ViewMode.Week ? 100 : 200}
+            todayColor="rgba(59,130,246,0.1)"
+            barCornerRadius={3}
+            barFill={75}
+          />
+        </div>
       </div>
     </div>
   )
-}
+})

@@ -17,6 +17,7 @@ import {
   Legend,
   ResponsiveContainer,
 } from 'recharts'
+import { memo } from 'react'
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
 import { ChartContainer } from '@/components/common/ChartContainer'
@@ -85,7 +86,7 @@ interface EVMChartProps {
   isLoading?: boolean
 }
 
-export function EVMChart({
+export const EVMChart = memo(function EVMChart({
   snapshots,
   bac,
   fechaHoy = new Date(),
@@ -201,4 +202,4 @@ export function EVMChart({
       </ResponsiveContainer>
     </ChartContainer>
   )
-}
+})

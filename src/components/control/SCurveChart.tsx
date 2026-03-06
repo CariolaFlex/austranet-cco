@@ -6,6 +6,7 @@
  * Usa Recharts AreaChart con Brush para zoom temporal.
  */
 
+import { memo } from 'react'
 import {
   AreaChart,
   Area,
@@ -72,7 +73,7 @@ interface SCurveChartProps {
   mostrarPorcentaje?: boolean
 }
 
-export function SCurveChart({
+export const SCurveChart = memo(function SCurveChart({
   snapshots,
   bac = 0,
   altura = 320,
@@ -153,4 +154,4 @@ export function SCurveChart({
       </ResponsiveContainer>
     </ChartContainer>
   )
-}
+})

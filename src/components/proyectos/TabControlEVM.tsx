@@ -13,8 +13,8 @@
  * Botón "Capturar Snapshot EVM" → graba snapshot manual en Firestore.
  */
 
-import { useMemo } from 'react'
-import { TrendingUp, Camera, RefreshCw, Info } from 'lucide-react'
+import { useMemo, useCallback } from 'react'
+import { TrendingUp, Camera, RefreshCw, Info, Download } from 'lucide-react'
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
 import { Button } from '@/components/ui/button'
@@ -30,6 +30,7 @@ import {
   useKPIsEVMActuales,
   useCrearSnapshotDesdeTareas,
 } from '@/hooks/useSnapshotsEVM'
+import { exportarEVMCSV } from '@/lib/export-utils'
 import type { Proyecto, KPIsDashboard, SnapshotEVM } from '@/types'
 
 // -------------------------------------------------------
@@ -89,6 +90,10 @@ export function TabControlEVM({ proyecto }: TabControlEVMProps) {
 
   const { mutate: capturarSnapshot, isPending: capturando } = useCrearSnapshotDesdeTareas()
 
+  const handleExportCSV = useCallback(() => {
+    exportarEVMCSV(snapshots, proyecto.nombre)
+  }, [snapshots, proyecto.nombre])
+
   // ─── Construir KPIsDashboard para SemaforoPanel ───────────────────────────
   const kpisDashboard: KPIsDashboard | null = useMemo(() => {
     // Prioridad 1: KPIs cacheados en el documento del proyecto (actualizados por Cloud Functions)
@@ -134,6 +139,17 @@ export function TabControlEVM({ proyecto }: TabControlEVMProps) {
             </span>
           )}
         </div>
+
+        {snapshots.length > 0 && (
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={handleExportCSV}
+          >
+            <Download className="h-3.5 w-3.5 mr-1.5" />
+            Exportar CSV
+          </Button>
+        )}
 
         <Button
           size="sm"

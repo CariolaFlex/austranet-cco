@@ -6,7 +6,7 @@
  */
 
 import { ViewMode } from 'gantt-task-react'
-import { ZoomIn, ZoomOut, Eye, EyeOff } from 'lucide-react'
+import { ZoomIn, ZoomOut, Eye, EyeOff, Download } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { cn } from '@/lib/utils'
@@ -25,6 +25,8 @@ interface GanttToolbarProps {
   onFiltroEstadoChange: (estado: EstadoTarea | 'todas') => void
   totalTareas: number
   tareasCriticas: number
+  onExport?: () => void
+  isExporting?: boolean
 }
 
 // -------------------------------------------------------
@@ -57,6 +59,8 @@ export function GanttToolbar({
   onFiltroEstadoChange,
   totalTareas,
   tareasCriticas,
+  onExport,
+  isExporting = false,
 }: GanttToolbarProps) {
   return (
     <div className="flex flex-wrap items-center gap-3 pb-3 border-b">
@@ -110,6 +114,20 @@ export function GanttToolbar({
         {mostrarCPM ? <Eye className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5" />}
         Ruta Crítica
       </Button>
+
+      {/* Exportar PDF */}
+      {onExport && (
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={onExport}
+          disabled={isExporting}
+          className="h-7 text-xs gap-1.5"
+        >
+          <Download className="h-3.5 w-3.5" />
+          {isExporting ? 'Generando…' : 'PDF'}
+        </Button>
+      )}
 
       {/* Estadísticas */}
       <div className="ml-auto flex items-center gap-2 text-xs text-muted-foreground">

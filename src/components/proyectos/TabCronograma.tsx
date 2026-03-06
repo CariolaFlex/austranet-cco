@@ -83,7 +83,7 @@ export function TabCronograma({ proyecto }: TabCronogramaProps) {
 
       {/* Contenido */}
       {subTab === 'gantt' && (
-        <GanttChart proyectoId={proyecto.id} altura={500} />
+        <GanttChart proyectoId={proyecto.id} proyectoNombre={proyecto.nombre} altura={500} />
       )}
       {subTab === 'tracking' && (
         <TrackingGantt proyectoId={proyecto.id} altura={500} />

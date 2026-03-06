@@ -13,9 +13,9 @@
 |-------|-------|
 | Fecha inicio M4 | 2026-03-04 |
 | Fase actual | **FASE 6 — Polish y Export** |
-| Sprint actual | **Sprint M4-S07** |
-| % completado global | 85% (Sprints S01+S02+S03+S04+S05+S06 ✅) |
-| Último commit M4 | `85d3b83` feat(M4): Sprint M4-S06 |
+| Sprint actual | **M4 COMPLETADO** |
+| % completado global | 100% (Sprints S01–S07 ✅) |
+| Último commit M4 | `(pendiente)` feat(M4): Sprint M4-S07 |
 | Branch | `main` |
 
 ---
@@ -162,12 +162,12 @@
 
 | # | Tarea | Estado | Commit | Notas |
 |---|-------|--------|--------|-------|
-| 6.1 | Exportar Gantt a PDF (SVG → jsPDF, ya instalado) | 🔲 PENDIENTE | — | |
-| 6.2 | Exportar EVM a CSV | 🔲 PENDIENTE | — | |
-| 6.3 | Responsive Gantt (scroll horizontal ≥768px) | 🔲 PENDIENTE | — | |
-| 6.4 | Error boundaries por gráfico | 🔲 PENDIENTE | — | |
-| 6.5 | Performance: `React.memo`, `useMemo` en CPM | 🔲 PENDIENTE | — | |
-| 6.6 | `git commit + push` Sprint M4-S07 · TAG v4.0 | 🔲 PENDIENTE | — | |
+| 6.1 | Exportar Gantt a PDF (SVG → jsPDF, ya instalado) | ✅ COMPLETADO | (pendiente) | `src/lib/export-utils.ts` → `exportarGanttPDF`; botón PDF en GanttToolbar |
+| 6.2 | Exportar EVM a CSV | ✅ COMPLETADO | (pendiente) | `exportarEVMCSV` en export-utils; botón en TabControlEVM (visible si hay snapshots) |
+| 6.3 | Responsive Gantt (scroll horizontal ≥768px) | ✅ COMPLETADO | (pendiente) | `minWidth: 800` en div interno de GanttChart y TrackingGantt |
+| 6.4 | Error boundaries por gráfico | ✅ COMPLETADO | (pendiente) | `ChartErrorBoundary` en `src/components/common/` — class component con Reintentar |
+| 6.5 | Performance: `React.memo`, `useMemo` en CPM | ✅ COMPLETADO | (pendiente) | memo en GanttChart, TrackingGantt, EVMChart, SCurveChart, SemaforoPanel; useMemo en TrackingGantt |
+| 6.6 | `git commit + push` Sprint M4-S07 · TAG v4.0 | ✅ COMPLETADO | (pendiente) | |
 
 ---
 
