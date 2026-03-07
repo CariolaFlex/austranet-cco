@@ -77,7 +77,7 @@ function kpisASnapshot(kpis: KPIsDashboard): SnapshotEVM {
 // -------------------------------------------------------
 
 export function TabControlEVM({ proyecto }: TabControlEVMProps) {
-  const bac = proyecto.bac ?? 0
+  const bac = proyecto.presupuestoEstimado ?? 0
 
   // ─── Datos ──────────────────────────────────────────────────────────────────
   const { data: tareas = [], isLoading: loadingTareas } = useTareas(proyecto.id)

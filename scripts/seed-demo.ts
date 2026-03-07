@@ -49,6 +49,9 @@ const IDS = {
   usuario_pm: `${DEMO_PREFIX}-usuario-pm`,
   usuario_analista: `${DEMO_PREFIX}-usuario-analista`,
   apu1: `${DEMO_PREFIX}-apu-edificio`,
+  srs1: `${DEMO_PREFIX}-srs-proyecto-activo`,
+  srs2: `${DEMO_PREFIX}-srs-proyecto-definicion`,
+  repo1: `${DEMO_PREFIX}-repo-proyecto-activo`,
   tarea1: `${DEMO_PREFIX}-tarea-01`,
   tarea2: `${DEMO_PREFIX}-tarea-02`,
   tarea3: `${DEMO_PREFIX}-tarea-03`,
@@ -123,7 +126,7 @@ function calcularEVM(
 ): {
   pv: number; ev: number; ac: number
   spi: number; cpi: number; sv: number; cv: number; eac: number; etc: number; tcpi: number
-  semaforoSPI: string; semaforoCPI: string
+  semaforoCronograma: string; semaforoCostos: string
 } {
   const pv = Math.round(bac * pctPV * 100) / 100
   const ev = Math.round(bac * pctEV * 100) / 100
@@ -138,10 +141,10 @@ function calcularEVM(
   const den = bac - ac
   const tcpi = den <= 0 ? 0 : Math.round(((bac - ev) / den) * 1000) / 1000
 
-  const semaforoSPI = spi >= 0.95 ? 'verde' : spi >= 0.80 ? 'amarillo' : 'rojo'
-  const semaforoCPI = cpi >= 0.95 ? 'verde' : cpi >= 0.85 ? 'amarillo' : 'rojo'
+  const semaforoCronograma = spi >= 0.95 ? 'verde' : spi >= 0.80 ? 'amarillo' : 'rojo'
+  const semaforoCostos = cpi >= 0.95 ? 'verde' : cpi >= 0.85 ? 'amarillo' : 'rojo'
 
-  return { pv, ev, ac, spi, cpi, sv, cv, eac, etc, tcpi, semaforoSPI, semaforoCPI }
+  return { pv, ev, ac, spi, cpi, sv, cv, eac, etc, tcpi, semaforoCronograma, semaforoCostos }
 }
 
 // ============================================================
@@ -195,6 +198,23 @@ async function resetDemoData(db: admin.firestore.Firestore): Promise<void> {
   const notiBatch = db.batch()
   notis.docs.forEach((d) => notiBatch.delete(d.ref))
   if (!notis.empty) await notiBatch.commit()
+
+  // SRS
+  try { await db.collection('srs').doc(IDS.srs1).delete() } catch { /* ignorar */ }
+  try { await db.collection('srs').doc(IDS.srs2).delete() } catch { /* ignorar */ }
+
+  // Repositorio de configuración
+  try { await db.collection('repositorios_configuracion').doc(IDS.repo1).delete() } catch { /* ignorar */ }
+
+  // Historial del proyecto (subcol — listar y borrar todos los docs)
+  try {
+    const historialDocs = await db.collection('proyectos').doc(IDS.proyecto1).collection('historial').listDocuments()
+    if (historialDocs.length > 0) {
+      const histBatch = db.batch()
+      historialDocs.forEach((d) => histBatch.delete(d))
+      await histBatch.commit()
+    }
+  } catch { /* ignorar */ }
 
   console.log('✅ Datos de demo borrados.')
 }
@@ -450,6 +470,7 @@ async function seedProyectos(db: admin.firestore.Firestore): Promise<void> {
     kpisDashboard: {
       ...evm6Semanas,
       bac: BAC,
+      desviacionDias: -5,
       pctAvanceTareas: 62.5,
       pctAvancePonderado: evm6Semanas.ev / BAC * 100,
       semaforoGeneral: 'amarillo',
@@ -529,16 +550,21 @@ async function seedProyectos(db: admin.firestore.Firestore): Promise<void> {
     kpisDashboard: {
       spi: 0.97,
       cpi: 1.03,
+      sv: 0,
+      cv: 1_805_826,
       pv: 62_000_000,
       ev: 62_000_000,
       ac: 60_194_174,
       eac: 60_194_174,
+      etc: 0,
+      tcpi: 1,
       bac: 62_000_000,
+      desviacionDias: 0,
       pctAvanceTareas: 100,
       pctAvancePonderado: 100,
       semaforoGeneral: 'verde',
-      semaforoSPI: 'verde',
-      semaforoCPI: 'verde',
+      semaforoCronograma: 'verde',
+      semaforoCostos: 'verde',
       actualizadoEn: ts(daysFromNow(-30)),
     },
     creadoEn: ts(daysFromNow(-365)),
@@ -565,10 +591,13 @@ async function seedTareas(db: admin.firestore.Firestore): Promise<void> {
       proyectoId: IDS.proyecto1,
       nombre: 'Levantamiento y análisis de requerimientos',
       descripcion: 'Entrevistas con stakeholders, taller de requerimientos, documentación SRS',
+      tipo: 'tarea',
+      wbsCode: '1.0',
+      nivel: 1,
       estado: 'completada',
       orden: 1,
       porcentajeAvance: 100,
-      duracionEstimada: 10,
+      duracionDias: 10,
       fechaInicioPlaneada: ts(daysFromNow(-118)),
       fechaFinPlaneada: ts(daysFromNow(-108)),
       costoPlaneado: 4_200_000,
@@ -577,102 +606,123 @@ async function seedTareas(db: admin.firestore.Firestore): Promise<void> {
       dependencias: [],
       asignaciones: [IDS.usuario_analista, IDS.usuario_pm],
       holguraTotal: 0,
-      esRutaCritica: true,
+      holguraLibre: 0,
+      esCritica: true,
     },
     {
       id: IDS.tarea2,
       proyectoId: IDS.proyecto1,
       nombre: 'Diseño de arquitectura del sistema',
       descripcion: 'Diagramas de arquitectura, modelo de datos Firestore, definición de APIs',
+      tipo: 'tarea',
+      wbsCode: '2.0',
+      nivel: 1,
       estado: 'completada',
       orden: 2,
       porcentajeAvance: 100,
-      duracionEstimada: 8,
+      duracionDias: 8,
       fechaInicioPlaneada: ts(daysFromNow(-108)),
       fechaFinPlaneada: ts(daysFromNow(-100)),
       costoPlaneado: 3_800_000,
       costoReal: 3_650_000,
       responsable: IDS.usuario_admin,
-      dependencias: [IDS.tarea1],
+      dependencias: [{ tareaIdPredecesora: IDS.tarea1, tipo: 'FS', lagDias: 0 }],
       asignaciones: [IDS.usuario_admin],
       holguraTotal: 0,
-      esRutaCritica: true,
+      holguraLibre: 0,
+      esCritica: true,
     },
     {
       id: IDS.tarea3,
       proyectoId: IDS.proyecto1,
       nombre: 'Módulo M1 — Entidades y stakeholders',
       descripcion: 'CRUD de entidades, wizard de registro, evaluación de factibilidad, KPIs',
+      tipo: 'tarea',
+      wbsCode: '3.0',
+      nivel: 1,
       estado: 'completada',
       orden: 3,
       porcentajeAvance: 100,
-      duracionEstimada: 15,
+      duracionDias: 15,
       fechaInicioPlaneada: ts(daysFromNow(-100)),
       fechaFinPlaneada: ts(daysFromNow(-85)),
       costoPlaneado: 7_200_000,
       costoReal: 7_450_000,
       responsable: IDS.usuario_pm,
-      dependencias: [IDS.tarea2],
+      dependencias: [{ tareaIdPredecesora: IDS.tarea2, tipo: 'FS', lagDias: 0 }],
       asignaciones: [IDS.usuario_pm, IDS.usuario_analista],
       holguraTotal: 0,
-      esRutaCritica: true,
+      holguraLibre: 0,
+      esCritica: true,
     },
     {
       id: IDS.tarea4,
       proyectoId: IDS.proyecto1,
       nombre: 'Módulo M2 — Proyectos y ciclo de vida',
       descripcion: 'Wizard de 7 pasos, gestión de riesgos, hitos, seguimiento y cierre',
+      tipo: 'tarea',
+      wbsCode: '4.0',
+      nivel: 1,
       estado: 'completada',
       orden: 4,
       porcentajeAvance: 100,
-      duracionEstimada: 18,
+      duracionDias: 18,
       fechaInicioPlaneada: ts(daysFromNow(-85)),
       fechaFinPlaneada: ts(daysFromNow(-67)),
       costoPlaneado: 8_400_000,
       costoReal: 8_100_000,
       responsable: IDS.usuario_pm,
-      dependencias: [IDS.tarea3],
+      dependencias: [{ tareaIdPredecesora: IDS.tarea3, tipo: 'FS', lagDias: 0 }],
       asignaciones: [IDS.usuario_pm, IDS.usuario_analista],
       holguraTotal: 0,
-      esRutaCritica: true,
+      holguraLibre: 0,
+      esCritica: true,
     },
     {
       id: IDS.tarea5,
       proyectoId: IDS.proyecto1,
       nombre: 'Módulo M3 — Alcance y SRS',
       descripcion: 'SRS bajo IEEE 830, 8 fases, trazabilidad, CCB, exportación PDF/DOCX',
+      tipo: 'tarea',
+      wbsCode: '5.0',
+      nivel: 1,
       estado: 'completada',
       orden: 5,
       porcentajeAvance: 100,
-      duracionEstimada: 12,
+      duracionDias: 12,
       fechaInicioPlaneada: ts(daysFromNow(-67)),
       fechaFinPlaneada: ts(daysFromNow(-55)),
       costoPlaneado: 5_500_000,
       costoReal: 5_320_000,
       responsable: IDS.usuario_analista,
-      dependencias: [IDS.tarea4],
+      dependencias: [{ tareaIdPredecesora: IDS.tarea4, tipo: 'FS', lagDias: 0 }],
       asignaciones: [IDS.usuario_analista],
       holguraTotal: 0,
-      esRutaCritica: true,
+      holguraLibre: 0,
+      esCritica: true,
     },
     {
       id: IDS.tarea6,
       proyectoId: IDS.proyecto1,
       nombre: 'Módulo M4 — Cronograma y EVM',
       descripcion: 'Gantt, CPM/PERT, curvas S, histograma de recursos, portafolio',
+      tipo: 'tarea',
+      wbsCode: '6.0',
+      nivel: 1,
       estado: 'en_progreso',
       orden: 6,
       porcentajeAvance: 85,
-      duracionEstimada: 20,
+      duracionDias: 20,
       fechaInicioPlaneada: ts(daysFromNow(-55)),
       fechaFinPlaneada: ts(daysFromNow(-35)),
       costoPlaneado: 9_400_000,
       costoReal: 9_200_000,
       responsable: IDS.usuario_admin,
-      dependencias: [IDS.tarea5],
+      dependencias: [{ tareaIdPredecesora: IDS.tarea5, tipo: 'FS', lagDias: 0 }],
       asignaciones: [IDS.usuario_admin, IDS.usuario_pm],
       holguraTotal: 0,
-      esRutaCritica: true,
+      holguraLibre: 0,
+      esCritica: true,
       apuId: IDS.apu1,
       apuPartidaId: 'p1',
       cantidad: 1,
@@ -683,19 +733,23 @@ async function seedTareas(db: admin.firestore.Firestore): Promise<void> {
       proyectoId: IDS.proyecto1,
       nombre: 'Módulo M5 — APU y catálogo de insumos',
       descripcion: 'APU con partidas/insumos, vinculación Tarea↔APU, catálogo global, exportación',
+      tipo: 'tarea',
+      wbsCode: '7.0',
+      nivel: 1,
       estado: 'en_progreso',
       orden: 7,
       porcentajeAvance: 75,
-      duracionEstimada: 14,
+      duracionDias: 14,
       fechaInicioPlaneada: ts(daysFromNow(-35)),
       fechaFinPlaneada: ts(daysFromNow(-21)),
       costoPlaneado: 6_300_000,
       costoReal: 5_100_000,
       responsable: IDS.usuario_pm,
-      dependencias: [IDS.tarea6],
+      dependencias: [{ tareaIdPredecesora: IDS.tarea6, tipo: 'FS', lagDias: 0 }],
       asignaciones: [IDS.usuario_pm, IDS.usuario_analista],
       holguraTotal: 0,
-      esRutaCritica: true,
+      holguraLibre: 0,
+      esCritica: true,
       apuId: IDS.apu1,
       apuPartidaId: 'p2',
       cantidad: 1,
@@ -706,19 +760,23 @@ async function seedTareas(db: admin.firestore.Firestore): Promise<void> {
       proyectoId: IDS.proyecto1,
       nombre: 'QA, pruebas UAT y deploy final',
       descripcion: 'Pruebas de aceptación con el cliente, correcciones, deploy a Firebase Hosting',
+      tipo: 'tarea',
+      wbsCode: '8.0',
+      nivel: 1,
       estado: 'pendiente',
       orden: 8,
       porcentajeAvance: 30,
-      duracionEstimada: 15,
+      duracionDias: 15,
       fechaInicioPlaneada: ts(daysFromNow(-10)),
       fechaFinPlaneada: ts(daysFromNow(5)),
       costoPlaneado: 3_700_000,
       costoReal: 1_200_000,
       responsable: IDS.usuario_analista,
-      dependencias: [IDS.tarea7],
+      dependencias: [{ tareaIdPredecesora: IDS.tarea7, tipo: 'FS', lagDias: 0 }],
       asignaciones: [IDS.usuario_analista, IDS.usuario_pm, IDS.usuario_admin],
       holguraTotal: 5,
-      esRutaCritica: false,
+      holguraLibre: 5,
+      esCritica: false,
     },
   ]
 
@@ -744,6 +802,7 @@ async function seedAPU(db: admin.firestore.Firestore): Promise<void> {
     nombre: 'APU Sistema Gestión de Obras',
     descripcion: 'Análisis de Precios Unitarios para el desarrollo completo del sistema CCO',
     estado: 'aprobado',
+    moneda: 'CLP',
     version: 1,
     partidas: [
       {
@@ -783,8 +842,8 @@ async function seedAPU(db: admin.firestore.Firestore): Promise<void> {
           },
         ],
         costoDirecto: 7_840_000,
-        porcentajeGG: 10,
-        porcentajeUtilidad: 5,
+        ggPct: 10,
+        utilidadPct: 5,
         precioUnitario: 9_408_000,
         subtotal: 9_408_000,
       },
@@ -816,8 +875,8 @@ async function seedAPU(db: admin.firestore.Firestore): Promise<void> {
           },
         ],
         costoDirecto: 5_340_000,
-        porcentajeGG: 10,
-        porcentajeUtilidad: 5,
+        ggPct: 10,
+        utilidadPct: 5,
         precioUnitario: 6_195_000,
         subtotal: 6_195_000,  // ajustado por presupuesto nominal
       },
@@ -849,8 +908,8 @@ async function seedAPU(db: admin.firestore.Firestore): Promise<void> {
           },
         ],
         costoDirecto: 1_960_000,
-        porcentajeGG: 10,
-        porcentajeUtilidad: 5,
+        ggPct: 10,
+        utilidadPct: 5,
         precioUnitario: 2_250_000,
         subtotal: 2_250_000,
       },
@@ -882,8 +941,8 @@ async function seedAPU(db: admin.firestore.Firestore): Promise<void> {
           },
         ],
         costoDirecto: 1_548_000,
-        porcentajeGG: 10,
-        porcentajeUtilidad: 5,
+        ggPct: 10,
+        utilidadPct: 5,
         precioUnitario: 1_785_000,
         subtotal: 1_785_000,
       },
@@ -946,8 +1005,8 @@ async function seedSnapshotsEVM(db: admin.firestore.Firestore): Promise<void> {
         eac: evm.eac,
         etc: evm.etc,
         tcpi: evm.tcpi,
-        semaforoSPI: evm.semaforoSPI,
-        semaforoCPI: evm.semaforoCPI,
+        semaforoSPI: evm.semaforoCronograma,
+        semaforoCPI: evm.semaforoCostos,
         creadoEn: ts(fecha),
       })
   }
@@ -1034,6 +1093,331 @@ async function seedNotificaciones(db: admin.firestore.Firestore): Promise<void> 
 }
 
 // ============================================================
+// SEED — ALCANCE (SRS)
+// ============================================================
+
+async function seedAlcance(db: admin.firestore.Firestore): Promise<void> {
+  console.log('📋 Creando documentos SRS...')
+
+  // SRS para proyecto1 (activo_en_desarrollo — SRS aprobado)
+  await db.collection('srs').doc(IDS.srs1).set({
+    proyectoId: IDS.proyecto1,
+    version: 'v1.0',
+    estado: 'aprobado',
+    tipoSRS: 'completo',
+    gate1Estado: 'go',
+    gate1FechaDecision: ts(daysFromNow(-85)),
+    gate1DecisionPor: IDS.usuario_admin,
+    stakeholdersSRS: [
+      {
+        id: 'ss1',
+        nombre: 'María Fernández',
+        cargo: 'Gerente de TI',
+        email: 'mfernandez@consur.cl',
+        rol: 'cliente_clave',
+        nivelParticipacion: 'alto',
+        tecnicasAplicadas: ['entrevista', 'taller'],
+      },
+      {
+        id: 'ss2',
+        nombre: 'Jorge Salinas',
+        cargo: 'Jefe de Proyectos',
+        email: 'jsalinas@consur.cl',
+        rol: 'usuario_final',
+        nivelParticipacion: 'medio',
+        tecnicasAplicadas: ['cuestionario'],
+      },
+    ],
+    riesgosSRS: [
+      {
+        id: 'rs1',
+        descripcion: 'Requerimientos volátiles en módulo EVM',
+        probabilidad: 'media',
+        impacto: 'alto',
+        mitigacion: 'Revisión semanal de requerimientos con el cliente',
+      },
+    ],
+    tecnicasActivas: ['entrevista', 'taller', 'casos_uso'],
+    prototipos: [],
+    iteracionesBucle: [],
+    artefactosModelo: [],
+    checklistValidacion: [
+      { item: 'Requerimientos completos y sin ambigüedad', cumple: true },
+      { item: 'Trazabilidad bidireccional verificada', cumple: true },
+      { item: 'Aprobación formal del cliente', cumple: true },
+    ],
+    observacionesValidacion: [],
+    ccbSRS: [
+      { id: 'ccb1', nombre: 'Ana González', rol: 'PM', voto: 'aprobado' },
+      { id: 'ccb2', nombre: 'María Fernández', rol: 'cliente', voto: 'aprobado' },
+    ],
+    solicitudesCambioSRS: [
+      {
+        id: 'sc1',
+        titulo: 'Agregar exportación a formato DOCX',
+        descripcion: 'El cliente requiere exportación en Word además de PDF',
+        estado: 'aprobada',
+        prioridad: 'baja',
+        impactoEstimado: 'bajo',
+        solicitadoPor: 'Jorge Salinas',
+        fechaSolicitud: ts(daysFromNow(-50)),
+        fechaResolucion: ts(daysFromNow(-48)),
+      },
+    ],
+    matrizTrazabilidad: [],
+    contadorCiclosValidacion: 2,
+    creadoEn: ts(daysFromNow(-90)),
+    actualizadoEn: ts(daysFromNow(-60)),
+    creadoPor: IDS.usuario_analista,
+  })
+
+  // SRS para proyecto2 (activo_en_definicion — en proceso)
+  await db.collection('srs').doc(IDS.srs2).set({
+    proyectoId: IDS.proyecto2,
+    version: 'v0.1',
+    estado: 'no_iniciado',
+    tipoSRS: 'completo',
+    gate1Estado: 'pendiente',
+    stakeholdersSRS: [
+      {
+        id: 'ss3',
+        nombre: 'Roberto Pizarro',
+        cargo: 'Director General',
+        email: 'rpizarro@olivos.cl',
+        rol: 'sponsor',
+        nivelParticipacion: 'bajo',
+        tecnicasAplicadas: ['entrevista'],
+      },
+    ],
+    riesgosSRS: [],
+    tecnicasActivas: ['entrevista'],
+    prototipos: [],
+    iteracionesBucle: [],
+    artefactosModelo: [],
+    checklistValidacion: [],
+    observacionesValidacion: [],
+    ccbSRS: [],
+    solicitudesCambioSRS: [],
+    matrizTrazabilidad: [],
+    contadorCiclosValidacion: 0,
+    creadoEn: ts(daysFromNow(-14)),
+    actualizadoEn: ts(daysFromNow(-1)),
+    creadoPor: IDS.usuario_analista,
+  })
+
+  console.log('  ✓ 2 documentos SRS creados')
+}
+
+// ============================================================
+// SEED — HISTORIAL DEL PROYECTO
+// ============================================================
+
+async function seedHistorial(db: admin.firestore.Firestore): Promise<void> {
+  console.log('📜 Creando historial del proyecto...')
+
+  const historialRef = db.collection('proyectos').doc(IDS.proyecto1).collection('historial')
+
+  const entradas = [
+    {
+      proyectoId: IDS.proyecto1,
+      usuarioId: IDS.usuario_admin,
+      usuarioNombre: 'Carlos Administrador',
+      tipoAccion: 'creacion',
+      motivo: 'Proyecto creado desde el wizard de nuevo proyecto',
+      fechaHora: ts(daysFromNow(-120)),
+    },
+    {
+      proyectoId: IDS.proyecto1,
+      usuarioId: IDS.usuario_admin,
+      usuarioNombre: 'Carlos Administrador',
+      tipoAccion: 'cambio_estado',
+      campoModificado: 'estado',
+      valorAnterior: 'borrador',
+      valorNuevo: 'pendiente_aprobacion',
+      motivo: 'Metodología acordada con el cliente. Metodología: agil_scrum.',
+      fechaHora: ts(daysFromNow(-118)),
+    },
+    {
+      proyectoId: IDS.proyecto1,
+      usuarioId: IDS.usuario_admin,
+      usuarioNombre: 'Carlos Administrador',
+      tipoAccion: 'metodologia_acordada',
+      campoModificado: 'metodologia',
+      valorNuevo: 'agil_scrum',
+      motivo: 'Metodología Scrum acordada con ConSur en reunión de kick-off',
+      fechaHora: ts(daysFromNow(-118)),
+    },
+    {
+      proyectoId: IDS.proyecto1,
+      usuarioId: IDS.usuario_admin,
+      usuarioNombre: 'Carlos Administrador',
+      tipoAccion: 'cambio_estado',
+      campoModificado: 'estado',
+      valorAnterior: 'pendiente_aprobacion',
+      valorNuevo: 'activo_en_definicion',
+      motivo: 'Propuesta aprobada por el cliente. SRS iniciado.',
+      fechaHora: ts(daysFromNow(-115)),
+    },
+    {
+      proyectoId: IDS.proyecto1,
+      usuarioId: IDS.usuario_pm,
+      usuarioNombre: 'Ana González (PM)',
+      tipoAccion: 'cambio_estado',
+      campoModificado: 'estado',
+      valorAnterior: 'activo_en_definicion',
+      valorNuevo: 'activo_en_desarrollo',
+      motivo: 'SRS aprobado por el cliente. Desarrollo iniciado.',
+      fechaHora: ts(daysFromNow(-88)),
+    },
+    {
+      proyectoId: IDS.proyecto1,
+      usuarioId: IDS.usuario_pm,
+      usuarioNombre: 'Ana González (PM)',
+      tipoAccion: 'gestion_equipo',
+      motivo: 'Incorporación de Pedro Analista al equipo como analista de negocio',
+      fechaHora: ts(daysFromNow(-85)),
+    },
+    {
+      proyectoId: IDS.proyecto1,
+      usuarioId: IDS.usuario_pm,
+      usuarioNombre: 'Ana González (PM)',
+      tipoAccion: 'gestion_riesgos',
+      motivo: 'Riesgo R2 actualizado a estado mitigado: adaptador API implementado',
+      fechaHora: ts(daysFromNow(-40)),
+    },
+    {
+      proyectoId: IDS.proyecto1,
+      usuarioId: IDS.usuario_analista,
+      usuarioNombre: 'Pedro Analista',
+      tipoAccion: 'actualizacion_datos',
+      campoModificado: 'presupuestoEstimado',
+      valorAnterior: '45000000',
+      valorNuevo: '48500000',
+      motivo: 'Ajuste de presupuesto tras vinculación APU-CCO-001',
+      fechaHora: ts(daysFromNow(-60)),
+    },
+    {
+      proyectoId: IDS.proyecto1,
+      usuarioId: IDS.usuario_pm,
+      usuarioNombre: 'Ana González (PM)',
+      tipoAccion: 'gestion_riesgos',
+      motivo: 'Riesgo R3 materializado: cliente no disponible para UAT esta semana',
+      fechaHora: ts(daysFromNow(-2)),
+    },
+  ]
+
+  const batch = db.batch()
+  for (const entrada of entradas) {
+    batch.set(historialRef.doc(), entrada)
+  }
+  await batch.commit()
+  console.log('  ✓ 9 entradas de historial creadas')
+}
+
+// ============================================================
+// SEED — REPOSITORIO DE CONFIGURACIÓN
+// ============================================================
+
+async function seedRepositorios(db: admin.firestore.Firestore): Promise<void> {
+  console.log('🗂️  Creando repositorio de configuración...')
+
+  await db.collection('repositorios_configuracion').doc(IDS.repo1).set({
+    proyectoId: IDS.proyecto1,
+    version: '1.2.0',
+    estado: 'activo',
+    politicaEntregas: 'Sprints de 2 semanas. Deploy automático a staging al cerrar sprint. Deploy a producción requiere aprobación manual del PM.',
+    cicdObligatorio: true,
+    itemsConfiguracion: [
+      {
+        id: 'ic1',
+        nombre: 'firebase.json',
+        tipo: 'infraestructura',
+        descripcion: 'Configuración Firebase: Firestore rules, indexes, Cloud Functions',
+        version: '1.1.0',
+        estado: 'aprobado',
+        ubicacion: 'raíz del repositorio',
+        responsable: IDS.usuario_admin,
+      },
+      {
+        id: 'ic2',
+        nombre: 'next.config.js',
+        tipo: 'configuracion_app',
+        descripcion: 'Configuración de Next.js 14: remotePatterns, transpilePackages',
+        version: '1.0.2',
+        estado: 'aprobado',
+        ubicacion: 'raíz del repositorio',
+        responsable: IDS.usuario_admin,
+      },
+      {
+        id: 'ic3',
+        nombre: '.env.local / Variables Vercel',
+        tipo: 'secretos',
+        descripcion: '6 variables NEXT_PUBLIC_FIREBASE_* configuradas en Vercel',
+        version: '1.0.0',
+        estado: 'aprobado',
+        ubicacion: 'Vercel Dashboard > Settings > Environment Variables',
+        responsable: IDS.usuario_admin,
+      },
+      {
+        id: 'ic4',
+        nombre: 'firestore.rules',
+        tipo: 'seguridad',
+        descripcion: 'Reglas de seguridad Firestore v3.0 — todas las colecciones cubiertas',
+        version: '3.0.0',
+        estado: 'aprobado',
+        ubicacion: 'firestore.rules',
+        responsable: IDS.usuario_admin,
+      },
+    ],
+    ccbComposicion: [
+      { id: 'ccb1', nombre: 'Carlos Administrador', rol: 'arquitecto', votoRequerido: true },
+      { id: 'ccb2', nombre: 'Ana González (PM)', rol: 'PM', votoRequerido: true },
+      { id: 'ccb3', nombre: 'María Fernández', rol: 'cliente', votoRequerido: false },
+    ],
+    historialVersiones: [
+      {
+        version: '1.0.0',
+        fecha: ts(daysFromNow(-115)),
+        autor: IDS.usuario_admin,
+        descripcion: 'Creación inicial del repositorio de configuración',
+        cambios: ['Estructura base del proyecto', 'Firebase inicializado', 'CI/CD básico configurado'],
+      },
+      {
+        version: '1.1.0',
+        fecha: ts(daysFromNow(-60)),
+        autor: IDS.usuario_admin,
+        descripcion: 'Actualización tras deploy de M4 y M5',
+        cambios: ['Índices Firestore actualizados', 'Cloud Functions agregadas', 'Reglas de seguridad v3.0'],
+      },
+      {
+        version: '1.2.0',
+        fecha: ts(daysFromNow(-7)),
+        autor: IDS.usuario_analista,
+        descripcion: 'Corrección de índices faltantes para colecciones M4/M5',
+        cambios: ['8 índices nuevos en firestore.indexes.json', 'Deploy a producción exitoso'],
+      },
+    ],
+    solicitudesCambio: [
+      {
+        id: 'scr1',
+        titulo: 'Agregar índice compuesto para notificaciones por prioridad',
+        descripcion: 'Se requiere índice compuesto para query: destinatarios CONTAINS + prioridad ASC + fechaCreacion DESC',
+        estado: 'implementada',
+        prioridad: 'media',
+        solicitadoPor: IDS.usuario_pm,
+        fechaSolicitud: ts(daysFromNow(-20)),
+        fechaImplementacion: ts(daysFromNow(-7)),
+      },
+    ],
+    creadoEn: ts(daysFromNow(-115)),
+    actualizadoEn: ts(daysFromNow(-7)),
+    creadoPor: IDS.usuario_admin,
+  })
+
+  console.log('  ✓ 1 repositorio de configuración creado (v1.2.0, 4 ítems, 3 versiones)')
+}
+
+// ============================================================
 // FUNCIÓN PRINCIPAL — seedDemo()
 // ============================================================
 
@@ -1065,17 +1449,23 @@ export async function seedDemo(options: { reset?: boolean } = {}): Promise<void>
   await seedAPU(db)
   await seedSnapshotsEVM(db)
   await seedNotificaciones(db)
+  await seedAlcance(db)
+  await seedHistorial(db)
+  await seedRepositorios(db)
 
   console.log('\n✅ Seed completado exitosamente.')
   console.log('   Entidades:       2')
   console.log('   Proyectos:       3 (1 activo, 1 en definición, 1 completado)')
-  console.log('   Tareas:          8 (proyecto activo)')
-  console.log('   APU:             1 aprobado con 4 partidas')
+  console.log('   Tareas:          8 (proyecto activo — con tipo, wbsCode, dependencias correctas)')
+  console.log('   APU:             1 aprobado con 4 partidas (moneda CLP, ggPct/utilidadPct correctos)')
   console.log('   Snapshots EVM:   6 semanas históricas')
   console.log('   Riesgos:         3 (1 activo, 1 mitigado, 1 materializado)')
   console.log('   Hitos:           4 (2 completados, 1 en riesgo, 1 pendiente)')
   console.log('   Usuarios:        3 (admin, pm, analista)')
-  console.log('   Notificaciones:  5 (1 crítica, 2 alta, 1 media, 1 baja)\n')
+  console.log('   Notificaciones:  5 (1 crítica, 2 alta, 1 media, 1 baja)')
+  console.log('   SRS:             2 (1 aprobado para activo, 1 no_iniciado para definición)')
+  console.log('   Historial:       9 entradas (proyecto activo)')
+  console.log('   Repositorios:    1 (proyecto activo, v1.2.0, 4 ítems, 3 versiones)\n')
 }
 
 // ============================================================
