@@ -31,6 +31,7 @@ import {
   useCrearSnapshotDesdeTareas,
 } from '@/hooks/useSnapshotsEVM'
 import { exportarEVMCSV } from '@/lib/export-utils'
+import { calcularSemaforoSPI, calcularSemaforoCPI, calcularSemaforoGeneral } from '@/constants/evm'
 import type { Proyecto, KPIsDashboard, SnapshotEVM } from '@/types'
 
 // -------------------------------------------------------
@@ -98,7 +99,18 @@ export function TabControlEVM({ proyecto }: TabControlEVMProps) {
   // ─── Construir KPIsDashboard para SemaforoPanel ───────────────────────────
   const kpisDashboard: KPIsDashboard | null = useMemo(() => {
     // Prioridad 1: KPIs cacheados en el documento del proyecto (actualizados por Cloud Functions)
-    if (proyecto.kpisDashboard) return proyecto.kpisDashboard
+    if (proyecto.kpisDashboard) {
+      const k = proyecto.kpisDashboard
+      // Retrocompatibilidad: calcular semáforos si no están almacenados (datos legacy)
+      return {
+        ...k,
+        semaforoCronograma: k.semaforoCronograma ?? calcularSemaforoSPI(k.spi),
+        semaforoCostos: k.semaforoCostos ?? calcularSemaforoCPI(k.cpi),
+        semaforoGeneral: k.semaforoGeneral ?? calcularSemaforoGeneral(calcularSemaforoSPI(k.spi), calcularSemaforoCPI(k.cpi)),
+        desviacionDias: k.desviacionDias ?? 0,
+        diasRestantes: k.diasRestantes ?? 0,
+      }
+    }
 
     // Prioridad 2: KPIs calculados en vivo desde tareas (antes de que exista Cloud Function)
     if (kpisLiveRaw) {
