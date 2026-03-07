@@ -153,7 +153,7 @@ export function EVMSummaryTable({ snapshot, className }: EVMSummaryTableProps) {
             </thead>
             <tbody>
               {filas.map((fila, i) => {
-                const cfg = SEMAFORO_COLOR[fila.semaforo]
+                const cfg = SEMAFORO_COLOR[fila.semaforo] ?? SEMAFORO_COLOR['sin_datos']
                 return (
                   <tr
                     key={fila.kpi}

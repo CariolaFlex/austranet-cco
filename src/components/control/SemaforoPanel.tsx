@@ -40,8 +40,9 @@ interface SemaforoItemProps {
 }
 
 function SemaforoItem({ label, semaforo, valor, descripcion, icon: ContextIcon }: SemaforoItemProps) {
-  const cfg = SEMAFORO_COLOR[semaforo]
-  const SemaforoIcon = SEMAFORO_ICONS[semaforo]
+  const safeSemaforo: SemaforoEVM = SEMAFORO_COLOR[semaforo] ? semaforo : 'sin_datos'
+  const cfg = SEMAFORO_COLOR[safeSemaforo]
+  const SemaforoIcon = SEMAFORO_ICONS[safeSemaforo]
 
   return (
     <div className={cn('rounded-lg border p-3 flex flex-col gap-1.5', cfg.bg, cfg.border)}>
@@ -81,8 +82,9 @@ export const SemaforoPanel = memo(function SemaforoPanel({ kpis, modo = 'detaile
     return (
       <div className={cn('flex items-center gap-3', className)}>
         {items.map(({ label, semaforo }) => {
-          const cfg = SEMAFORO_COLOR[semaforo]
-          const Icon = SEMAFORO_ICONS[semaforo]
+          const safeSemaforo: SemaforoEVM = SEMAFORO_COLOR[semaforo] ? semaforo : 'sin_datos'
+          const cfg = SEMAFORO_COLOR[safeSemaforo]
+          const Icon = SEMAFORO_ICONS[safeSemaforo]
           return (
             <div key={label} className="flex items-center gap-1">
               <Icon className={cn('h-4 w-4', cfg.text)} />

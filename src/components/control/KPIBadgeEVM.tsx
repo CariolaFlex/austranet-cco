@@ -49,7 +49,8 @@ export function KPIBadgeEVM({
   valorAnterior,
 }: KPIBadgeEVMProps) {
   const label = EVM_LABELS[kpi]
-  const cfg = SEMAFORO_COLOR[semaforo]
+  const safeSemaforo: SemaforoEVM = SEMAFORO_COLOR[semaforo] ? semaforo : 'sin_datos'
+  const cfg = SEMAFORO_COLOR[safeSemaforo]
   const valorStr = formatear ? formatear(valor) : formatDefault(kpi, valor)
 
   // Tendencia
