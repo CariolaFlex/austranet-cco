@@ -65,6 +65,74 @@
       ]
     },
     {
+      "collectionGroup": "tareas",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "proyectoId", "order": "ASCENDING" },
+        { "fieldPath": "orden", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "tareas",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "proyectoId", "order": "ASCENDING" },
+        { "fieldPath": "esCritica", "order": "ASCENDING" },
+        { "fieldPath": "orden", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "tareas",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "proyectoId", "order": "ASCENDING" },
+        { "fieldPath": "estado", "order": "ASCENDING" },
+        { "fieldPath": "orden", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "apus",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "proyectoId", "order": "ASCENDING" },
+        { "fieldPath": "nombre", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "apus",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "proyectoId", "order": "ASCENDING" },
+        { "fieldPath": "estado", "order": "ASCENDING" },
+        { "fieldPath": "nombre", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "lineas_base",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "proyectoId", "order": "ASCENDING" },
+        { "fieldPath": "fechaCaptura", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "catalogo_insumos",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "activo", "order": "ASCENDING" },
+        { "fieldPath": "descripcion", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "catalogo_insumos",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "tipo", "order": "ASCENDING" },
+        { "fieldPath": "activo", "order": "ASCENDING" },
+        { "fieldPath": "descripcion", "order": "ASCENDING" }
+      ]
+    },
+    {
       "collectionGroup": "repositorios_configuracion",
       "queryScope": "COLLECTION",
       "fields": [
